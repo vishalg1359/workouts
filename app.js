@@ -532,8 +532,6 @@ function renderDay(key, editable = false) {
       h('span', { class: 'wcaret' }, open ? '▴' : '▾')) : null,
     entries.length && (!folded || open) ? h('div', { class: 'exs' }, entries.map((e) => {
       const w = renderEntry(key, e, editable);
-      const lt = editable ? lastTimeLine(key, e) : null;
-      if (lt) w.lastChild.append(lt);
       return w;
     })) : null,
     open ? h('button', { class: 'edit-day', onclick: (e) => { e.stopPropagation(); openDaySheet(key); } }, 'Edit day') : null,
@@ -609,29 +607,10 @@ function refreshDay(key) {
   if (padField && !padField.isConnected) closePad();
 }
 
-// ---------- Today tab: today's workout (editable), last-time hints, and the last day of the same type ----------
+// ---------- Today tab: today's workout (editable) and the last day of the same type ----------
 let lastDayOpen = false;
 function pastDaysDesc(before) {
   return Object.keys(state.days).filter((k) => k < before).sort().reverse();
-}
-function lastTimeLine(key, entry) {
-  const type = ((getDay(key) || {}).name || '').trim().toLowerCase();
-  const same = (e) => e.exerciseId === entry.exerciseId || e.name.trim().toLowerCase() === entry.name.trim().toLowerCase();
-  const keys = pastDaysDesc(key);
-  const find = (typed) => {
-    for (const k of keys) {
-      const d = state.days[k];
-      if (typed && d.name.trim().toLowerCase() !== type) continue;
-      const e = d.entries.find(same);
-      if (e) return [k, e];
-    }
-    return null;
-  };
-  const hit = (type && find(true)) || find(false);
-  if (!hit) return null;
-  const text = hit[1].sets.map(doneSummary).filter(Boolean).join(', ');
-  if (!text) return null;
-  return h('div', { class: 'lasttime' }, `last · ${fmt(dateOf(hit[0]), { month: 'short', day: 'numeric' })}: ${text}`);
 }
 function lastDayBar(key) {
   const name = ((getDay(key) || {}).name || '').trim();
