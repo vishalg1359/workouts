@@ -511,19 +511,24 @@ const topInset = () => document.querySelector('#view-log .topbar').getBoundingCl
 const bottomInset = () => document.querySelector('.tabbar').getBoundingClientRect().top;
 
 // Run a DOM change while keeping whatever is on screen in the same place.
-function keepAnchor(fn) {
+// Remember which day sits at the top of the screen (works even under an open sheet) and put it back there.
+function captureAnchor() {
+  if (!logActive()) return null;
   const top = topInset();
-  let anchor = null;
-  let offset = 0;
-  let el0 = null;
-  for (let y = top + 4; !el0 && y < top + 120; y += 20) {
-    const hit = document.elementFromPoint(40, y);
-    el0 = hit && hit.closest('[data-anchor]');
+  for (const el of feedEl.querySelectorAll('[data-anchor]')) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom > top) return { key: el.dataset.anchor, offset: r.top };
   }
-  if (el0) { anchor = el0.dataset.anchor; offset = el0.getBoundingClientRect().top; }
+  return null;
+}
+function restoreAnchor(a) {
+  const el = a && feedEl.querySelector(`[data-anchor="${a.key}"]`);
+  if (el) window.scrollBy(0, el.getBoundingClientRect().top - a.offset);
+}
+function keepAnchor(fn) {
+  const a = captureAnchor();
   fn();
-  const el = anchor && feedEl.querySelector(`[data-anchor="${anchor}"]`);
-  if (el) window.scrollBy(0, el.getBoundingClientRect().top - offset);
+  restoreAnchor(a);
 }
 
 function dayTypeButton(key, day) {
@@ -580,6 +585,11 @@ function extendPast() {
   rangeOldest = from;
   keepAnchor(() => feedEl.prepend(renderRange(from, to)));
 }
+function checkSentinels() {
+  if (!logActive()) return;
+  if (document.getElementById('top-sentinel').getBoundingClientRect().bottom > -1200) extendPast();
+  if (document.getElementById('bottom-sentinel').getBoundingClientRect().top < innerHeight + 1200) extendFuture();
+}
 function extendFuture() {
   const from = addDays(rangeNewest, 1);
   rangeNewest = monthEnd(rangeNewest, 2);
@@ -616,11 +626,24 @@ function openSheet(title, ...content) {
   document.getElementById('sheet-title').textContent = title;
   sheetBody.textContent = '';
   sheetBody.append(...content.filter((c) => c != null && c !== false && c !== ''));
+  if (sheet.hidden) sheetAnchor = captureAnchor();
   sheet.hidden = false;
   backdrop.hidden = false;
   sheetBody.scrollTop = 0;
 }
-function closeSheet() { sheet.hidden = true; backdrop.hidden = true; sheetBody.textContent = ''; }
+let sheetAnchor = null;
+function closeSheet() {
+  sheet.hidden = true;
+  backdrop.hidden = true;
+  sheetBody.textContent = '';
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const a = sheetAnchor;
+  sheetAnchor = null;
+  if (!a) return;
+  // The iPhone keyboard can shift the page while it closes, so restore again once it has settled.
+  requestAnimationFrame(() => { restoreAnchor(a); checkSentinels(); });
+  setTimeout(() => restoreAnchor(a), 450);
+}
 
 // Sheets never scroll the calendar behind them; dragging down from the top closes them.
 function sheetGestures(box, body, back, close) {
@@ -1052,7 +1075,7 @@ requestAnimationFrame(() => {
   scrollToToday(false);
   updateTitle();
   const watch = (id, fn) => new IntersectionObserver((items) => {
-    if (items.some((i) => i.isIntersecting) && logActive()) fn();
+    if (items.some((i) => i.isIntersecting) && logActive() && sheet.hidden) fn();
   }, { rootMargin: '1200px 0px' }).observe(document.getElementById(id));
   watch('top-sentinel', extendPast);
   watch('bottom-sentinel', extendFuture);
