@@ -682,14 +682,16 @@ function renderMonthGrid(focusKey) {
   if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - gridTop() + target.off);
   updateTitle();
 }
-function setCalMode(mode) {
+function setCalMode(mode, quiet) {
   calMode = mode;
+  try { localStorage.setItem('workouts.calMode', mode); } catch (_) {}
   const grid = mode === 'grid';
   document.getElementById('month').hidden = !grid;
   feedEl.hidden = grid;
   document.getElementById('cal-toggle').innerHTML = grid ? LIST_ICON : GRID_ICON;
   document.getElementById('cal-toggle').setAttribute('aria-label', grid ? 'List view' : 'Month view');
   document.getElementById('view-log').classList.toggle('grid-mode', grid);
+  if (quiet) return;
   if (grid) renderMonthGrid(todayKey());
   else requestAnimationFrame(() => { scrollToToday(false); updateTitle(); });
 }
@@ -761,8 +763,15 @@ function sizeTodayBox() {
   box.classList.add('daybox');
   box.style.minHeight = '';
   const bar = root.querySelector('.lastday .wbar');
-  if (!root.classList.contains('typed') || !todayTabActive()) return;
+  if (!todayTabActive()) return;
   const tabTop = document.querySelector('.tabbar').getBoundingClientRect().top;
+  const welcome = root.querySelector('.welcome');
+  if (welcome) {
+    welcome.style.minHeight = '';
+    const space = tabTop - welcome.getBoundingClientRect().top - 14;
+    if (space > 160) welcome.style.minHeight = `${Math.round(space)}px`;
+  }
+  if (!root.classList.contains('typed')) return;
   const top = box.getBoundingClientRect().top + window.scrollY;
   const room = tabTop - (bar ? bar.offsetHeight + 18 : 0) - 14 - top;
   if (room <= 0) return;
@@ -773,7 +782,14 @@ function sizeTodayBox() {
   if (exs) exs.hidden = false;
   if (extra > 0) box.style.minHeight = `${Math.max(0, room - extra)}px`;
 }
-window.addEventListener('resize', () => { if (todayTabActive() && !document.body.classList.contains('pad-open')) sizeTodayBox(); });
+const resizeToday = () => { if (todayTabActive() && !document.body.classList.contains('pad-open')) sizeTodayBox(); };
+window.addEventListener('resize', resizeToday);
+// On launch from the home screen iOS settles the screen size late; re-measure a few times.
+window.addEventListener('load', resizeToday);
+window.addEventListener('pageshow', resizeToday);
+if (window.visualViewport) visualViewport.addEventListener('resize', resizeToday);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(resizeToday);
+[100, 400, 1000, 2000].forEach((ms) => setTimeout(resizeToday, ms));
 function renderToday() {
   const root = document.getElementById('today');
   if (!root) return;
@@ -784,8 +800,23 @@ function renderToday() {
   const last = lastDayBar(key);
   root.classList.toggle('with-last', !!last);
   root.replaceChildren(renderDay(key, true), last || '');
+  syncWelcome();
   renderTodayType();
   sizeTodayBox();
+}
+function syncWelcome() {
+  const root = document.getElementById('today');
+  const key = dayViewKey();
+  const day = getDay(key);
+  const empty = key === todayKey() && !(day && (day.name.trim() || day.entries.length));
+  const cur = root.querySelector('.welcome');
+  if (!empty) { if (cur) cur.remove(); return; }
+  if (cur) return;
+  const glyph = document.querySelector('.tab[data-view="exercises"] svg');
+  root.firstElementChild.after(h('div', { class: 'welcome' },
+    glyph ? h('div', { class: 'wglyph' }, glyph.cloneNode(true)) : null,
+    h('h2', {}, 'Welcome to Workouts'),
+    h('p', {}, 'Pick a day type up top or add an exercise to get started.')));
 }
 function renderTodayType() {
   const slot = document.getElementById('today-type');
@@ -1756,4 +1787,5 @@ if ('serviceWorker' in navigator) {
 }
 
 const refreshDayBase = refreshDay;
-refreshDay = (...args) => { const r = refreshDayBase(...args); renderTodayType(); if (todayTabActive() && !document.body.classList.contains("pad-open")) sizeTodayBox(); return r; };
+refreshDay = (...args) => { const r = refreshDayBase(...args); if (todayTabActive()) syncWelcome(); renderTodayType(); if (todayTabActive() && !document.body.classList.contains("pad-open")) sizeTodayBox(); return r; };
+try { if (localStorage.getItem('workouts.calMode') === 'grid') setCalMode('grid', true); } catch (_) {}
