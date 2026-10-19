@@ -1449,7 +1449,8 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('pointerdown', (e) => {
   const a = document.activeElement;
   if (!a || !/^(INPUT|TEXTAREA)$/.test(a.tagName)) return;
-  if (e.target.closest('input, textarea, select, label')) return;
+  // Inside sheets and on buttons, leave the keyboard alone: closing it mid-tap shifts the layout and the tap misses.
+  if (e.target.closest('input, textarea, select, label, button, .sheet, .choice, [role="dialog"]')) return;
   a.blur();
 }, true);
 
