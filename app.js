@@ -805,32 +805,8 @@ function renderToday() {
   const last = lastDayBar(key);
   root.classList.toggle('with-last', !!last);
   root.replaceChildren(renderDay(key, true), last || '');
-  renderWeekStrip();
   renderTodayType();
   sizeTodayBox();
-}
-function renderWeekStrip() {
-  const strip = document.getElementById('weekstrip');
-  if (!strip) return;
-  const sel = dayViewKey();
-  const t = todayKey();
-  const back = dateOf(t); back.setDate(back.getDate() - 6);
-  const d = dateOf(sel < keyOf(back) ? sel : t);
-  d.setDate(d.getDate() - 6);
-  const cells = [];
-  for (let i = 0; i < 7; i++, d.setDate(d.getDate() + 1)) {
-    const k = keyOf(d);
-    const day = getDay(k);
-    const done = day && day.entries.length && !isRestDay(k, day);
-    const color = done ? dayColor(day) : '';
-    const future = k > t;
-    cells.push(h('button', { class: `wkd${k === t ? ' today' : ''}${k === sel ? ' on' : ''}${future ? ' future' : ''}${done ? ' done' : ''}`,
-      style: color ? `--day:${color}` : null, disabled: future, 'aria-label': fmt(d, { weekday: 'long', month: 'long', day: 'numeric' }),
-      onclick: () => setViewDay(k) },
-      h('span', { class: 'wl' }, fmt(d, { weekday: 'narrow' })),
-      h('span', { class: 'wk' }, String(d.getDate()))));
-  }
-  strip.replaceChildren(...cells);
 }
 function renderTodayType() {
   const slot = document.getElementById('today-type');
@@ -981,15 +957,22 @@ sheetGestures(sheet, sheetBody, backdrop, closeSheet);
 function fitSheetsToKeyboard() {
   const vv = window.visualViewport;
   if (!vv) return;
-  const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+  // Pin the sheet to the visible area by its top edge: iOS may shrink innerHeight and pan the page when the keyboard opens.
+  const a = document.activeElement;
+  const typing = a && a.closest && a.closest('.sheet') && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !['checkbox', 'radio', 'file', 'button', 'color'].includes(a.type)));
+  const open = typing && vv.height < (window.screen ? screen.height : window.innerHeight) * 0.8;
   document.querySelectorAll('.sheet').forEach((s) => {
-    s.style.bottom = kb > 60 ? `${kb}px` : '';
-    s.style.maxHeight = kb > 60 ? `${Math.round(vv.height - 10)}px` : '';
+    s.style.top = open ? `${Math.round(vv.offsetTop + 8)}px` : '';
+    s.style.bottom = open ? 'auto' : '';
+    s.style.height = open ? `${Math.round(vv.height - 8)}px` : '';
+    s.style.maxHeight = open ? 'none' : '';
   });
 }
 if (window.visualViewport) {
   visualViewport.addEventListener('resize', fitSheetsToKeyboard);
   visualViewport.addEventListener('scroll', fitSheetsToKeyboard);
+  document.addEventListener('focusin', () => setTimeout(fitSheetsToKeyboard, 50));
+  document.addEventListener('focusout', () => setTimeout(fitSheetsToKeyboard, 50));
 }
 backdrop.addEventListener('click', closeSheet);
 document.getElementById('sheet-close').addEventListener('click', closeSheet);
@@ -1794,4 +1777,4 @@ if ('serviceWorker' in navigator) {
 }
 
 const refreshDayBase = refreshDay;
-refreshDay = (...args) => { const r = refreshDayBase(...args); renderWeekStrip(); renderTodayType(); if (todayTabActive() && !document.body.classList.contains("pad-open")) sizeTodayBox(); return r; };
+refreshDay = (...args) => { const r = refreshDayBase(...args); renderTodayType(); if (todayTabActive() && !document.body.classList.contains("pad-open")) sizeTodayBox(); return r; };
