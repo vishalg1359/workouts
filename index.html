@@ -12,12 +12,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="styles.css">
+<script>try{var t=((JSON.parse(localStorage.getItem('workouts.v1'))||{}).profile||{}).theme;if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body>
 <main>
-  <section id="view-calendar" class="view active">
+  <section id="view-log" class="view active">
     <header class="topbar">
-      <h1 id="cal-title">Calendar</h1>
+      <h1>Log</h1>
       <div class="topbar-actions">
         <button id="today-btn" class="pill">Today</button>
         <label class="pill date-jump">Go to date
@@ -25,8 +26,9 @@
         </label>
       </div>
     </header>
-    <div id="days"></div>
-    <div id="days-sentinel"></div>
+    <div id="top-sentinel"></div>
+    <p id="feed-start" class="feed-start" hidden>Start of your log. Use “Go to date” for earlier days.</p>
+    <div id="feed"></div>
   </section>
 
   <section id="view-exercises" class="view">
@@ -38,25 +40,38 @@
     </header>
     <ul id="exercise-list" class="list"></ul>
     <p id="exercise-empty" class="empty">No exercises yet. Tap “+ New” to make one.</p>
-    <div class="backup">
+  </section>
+
+  <section id="view-profile" class="view">
+    <header class="topbar">
+      <h1>Profile</h1>
+    </header>
+    <div id="profile"></div>
+    <div class="group">
       <h2>Backup</h2>
-      <p class="hint">Your data lives only on this phone. Export a backup now and then.</p>
-      <div class="row">
-        <button id="export-btn" class="pill">Export backup</button>
-        <label class="pill">Import backup<input id="import-input" type="file" accept="application/json,.json" hidden></label>
+      <div class="group-card pad">
+        <p class="hint">Your data lives only on this phone. Export a backup now and then.</p>
+        <div class="row">
+          <button id="export-btn" class="pill">Export backup</button>
+          <label class="pill">Import backup<input id="import-input" type="file" accept="application/json,.json" hidden></label>
+        </div>
       </div>
     </div>
   </section>
 </main>
 
 <nav class="tabbar">
-  <button class="tab active" data-view="calendar">
+  <button class="tab active" data-view="log">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-    <span>Calendar</span>
+    <span>Log</span>
   </button>
   <button class="tab" data-view="exercises">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12"/></svg>
     <span>Exercises</span>
+  </button>
+  <button class="tab" data-view="profile">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+    <span>Profile</span>
   </button>
 </nav>
 
