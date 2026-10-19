@@ -11,7 +11,7 @@ const SIGNS = { '+': '−', '−': '+' };
 
 // Starter library: [name, icon, spec]. Spec blocks are 'join|unit'; W = the profile weight unit. Order = popularity.
 const STARTERS = [
-  ['bench press', 'bench.png', 'L'], ['squats', 'squat', 'L'], ['deadlift', 'deadlift', 'L'], ['pull-ups', 'pullup', 'B'],
+  ['bench press', 'bench', 'L'], ['squats', 'squat', 'L'], ['deadlift', 'deadlift', 'L'], ['pull-ups', 'pullup', 'B'],
   ['dumbbell bench press', 'db-bench', 'L'], ['incline bench press', 'incline', 'L'], ['overhead press', 'ohp', 'L'],
   ['barbell rows', 'bb-row', 'L'], ['lat pulldown', 'pulldown', 'L'], ['cable rows', 'cable-row', 'L'], ['bicep curls', 'curl', 'L'],
   ['tricep pushdowns', 'pushdown', 'L'], ['leg press', 'legpress', 'L'], ['romanian deadlift', 'rdl', 'L'], ['lunges', 'lunge', 'L'],
@@ -35,8 +35,10 @@ const PAGE_DAYS = 60;
 const NO_CAPS = { autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false' };
 
 // ---------- storage ----------
+const fixIcon = (o) => { if (o && o.icon === 'icons/bench.png') o.icon = 'icons/bench.svg'; return o; };
 function migrateDays(days) {
   Object.values(days).forEach((day) => (day.entries || []).forEach((e) => {
+    fixIcon(e);
     if (!Array.isArray(e.sets)) e.sets = [Array.isArray(e.spec) ? e.spec : []];
     delete e.spec;
   }));
@@ -44,7 +46,7 @@ function migrateDays(days) {
 }
 function normalize(s) {
   return {
-    exercises: Array.isArray(s.exercises) ? s.exercises : [],
+    exercises: Array.isArray(s.exercises) ? s.exercises.map(fixIcon) : [],
     days: s.days && typeof s.days === 'object' ? migrateDays(s.days) : {},
     presets: (Array.isArray(s.presets) ? s.presets : DEFAULT_PRESETS.slice()).filter((p) => !/^rest\b/i.test(p)),
     presetColors: s.presetColors && typeof s.presetColors === 'object' ? s.presetColors : { ...DEFAULT_PRESET_COLORS },
@@ -109,7 +111,7 @@ function h(tag, attrs, ...children) {
     else if (k === 'value') value = v;
     else el.setAttribute(k, v === true ? '' : v);
   }
-  for (const c of children.flat()) {
+  for (const c of children.flat(Infinity)) {
     if (c == null || c === false) continue;
     el.append(c instanceof Node ? c : document.createTextNode(String(c)));
   }
@@ -200,6 +202,7 @@ function openListEditor(kind) {
     h('div', { class: 'sheet-head' }, h('span', { class: 'sheet-spacer' }), h('h3', {}, L.title), h('button', { class: 'link', onclick: close }, 'Done')),
     body);
   back.addEventListener('click', close);
+  sheetGestures(box, body, back, close);
   const rows = h('div', {});
   const draw = () => {
     rows.replaceChildren(...list.map((v, i) => h('div', { class: 'choice' },
@@ -226,30 +229,45 @@ function valueInput(block, onChange) {
   const size = () => { inp.style.width = `${Math.max(2.6, inp.value.length + 1.4)}ch`; };
   size();
   inp.addEventListener('input', () => { block.value = inp.value; size(); onChange(); });
+  inp.addEventListener('focus', () => setTimeout(() => inp.select(), 0));
   return inp;
 }
 
 // Inline blocks on a logged entry: fill in numbers, switch units.
 function specInline(spec, onChange) {
-  return h('div', { class: 'spec' }, spec.map((b, i) => h('span', { class: 'blk' },
+  return h('div', { class: 'spec' }, spec.map((b, i) => [
     i > 0 && b.join ? (SIGNS[b.join]
       ? h('button', { class: 'jw sign', 'aria-label': 'Switch plus / minus', onclick: (e) => { b.join = SIGNS[b.join]; e.currentTarget.textContent = b.join; onChange(); } }, b.join)
       : h('span', { class: 'jw' }, b.join)) : null,
-    PREFIX_UNITS.has(b.unit) ? unitSelect(b, onChange) : null,
-    valueInput(b, onChange),
-    PREFIX_UNITS.has(b.unit) ? null : unitSelect(b, onChange))));
+    h('span', { class: 'tile' },
+      PREFIX_UNITS.has(b.unit) ? unitSelect(b, onChange) : null,
+      valueInput(b, onChange),
+      PREFIX_UNITS.has(b.unit) ? null : unitSelect(b, onChange))]));
 }
 
 // Block builder used in the exercise form and entry editor.
+function specTags(spec) {
+  return (spec || []).filter((b) => b.unit || String(b.value || '').trim()).map((b, i) => {
+    const v = String(b.value || '').trim();
+    return [i > 0 && b.join ? h('span', { class: 'tag-join' }, b.join) : null,
+      h('span', { class: 'tag' }, (PREFIX_UNITS.has(b.unit) ? [b.unit, v] : [v, b.unit]).filter(Boolean).join(' '))];
+  });
+}
 function blockEditor(spec) {
   const wrap = h('div', { class: 'blocks' });
+  const preview = h('div', { class: 'tags bpreview' });
+  const drawPreview = () => preview.replaceChildren(...specTags(spec).flat().filter(Boolean));
   const draw = () => {
     wrap.textContent = '';
+    drawPreview();
+    if (spec.length) wrap.append(preview);
     spec.forEach((b, i) => {
-      wrap.append(h('div', { class: 'brow' },
-        i > 0 ? joinSelect(b, () => {}) : h('span', { class: 'join-spacer' }),
-        valueInput(b, () => {}),
-        unitSelect(b, () => {}),
+      if (i > 0) wrap.append(h('div', { class: 'bconn' }, joinSelect(b, drawPreview)));
+      const def = valueInput(b, drawPreview);
+      def.classList.add('bdef-in');
+      wrap.append(h('div', { class: 'bcard' },
+        unitSelect(b, drawPreview),
+        h('label', { class: 'bdef' }, h('span', {}, 'default'), def),
         h('button', { class: 'x', 'aria-label': 'Remove block', onclick: () => { spec.splice(i, 1); draw(); } }, '×')));
     });
     const nextUnit = ['sets', 'reps', weightUnit()][spec.length] || 'reps';
@@ -272,11 +290,11 @@ function blockEditor(spec) {
   return wrap;
 }
 
-function exerciseText(item, blankMark) {
-  const summary = specSummary(item.spec, blankMark);
+function exerciseText(item) {
+  const tags = specTags(item.spec);
   return h('div', { class: 'etext' },
     h('div', { class: 'ename' }, item.name),
-    summary ? h('div', { class: 'edetails' }, summary) : null,
+    tags.length ? h('div', { class: 'tags' }, tags) : null,
     item.details ? h('div', { class: 'edetails' }, item.details) : null);
 }
 
@@ -349,6 +367,7 @@ function renderEntry(key, entry) {
   const rows = done
     ? entry.sets.map(doneSummary).filter(Boolean).map((t) => h('button', { class: 'set-text', onclick: () => openEntryEditor(key, entry.id) }, t))
     : entry.sets.map((spec, i) => h('div', { class: 'set' },
+        entry.sets.length > 1 ? h('span', { class: 'sn' }, String(i + 1)) : null,
         specInline(spec, save),
         entry.sets.length > 1 ? h('button', { class: 'x', 'aria-label': 'Remove set',
           onclick: () => { entry.sets.splice(i, 1); save(); refreshDay(key); } }, '×') : null));
@@ -597,6 +616,37 @@ function openSheet(title, ...content) {
   sheetBody.scrollTop = 0;
 }
 function closeSheet() { sheet.hidden = true; backdrop.hidden = true; sheetBody.textContent = ''; }
+
+// Sheets never scroll the calendar behind them; dragging down from the top closes them.
+function sheetGestures(box, body, back, close) {
+  let y0 = 0, dy = 0, drag = false, canDrag = false;
+  back.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  box.addEventListener('touchstart', (e) => {
+    y0 = e.touches[0].clientY; dy = 0; drag = false;
+    canDrag = !!e.target.closest('.sheet-head') || body.scrollTop <= 0;
+    box.style.transition = '';
+  }, { passive: true });
+  box.addEventListener('touchmove', (e) => {
+    dy = e.touches[0].clientY - y0;
+    if (canDrag && (drag || dy > 6)) {
+      drag = true;
+      e.preventDefault();
+      box.style.transform = `translateY(${Math.max(0, dy)}px)`;
+      return;
+    }
+    if (!body.contains(e.target) || body.scrollHeight <= body.clientHeight) e.preventDefault();
+  }, { passive: false });
+  box.addEventListener('touchend', () => {
+    if (!drag) return;
+    drag = false;
+    box.style.transition = 'transform 0.2s ease';
+    if (dy > 90) {
+      box.style.transform = 'translateY(100%)';
+      setTimeout(() => { box.style.transition = ''; box.style.transform = ''; close(); }, 200);
+    } else box.style.transform = '';
+  });
+}
+sheetGestures(sheet, sheetBody, backdrop, closeSheet);
 backdrop.addEventListener('click', closeSheet);
 document.getElementById('sheet-close').addEventListener('click', closeSheet);
 
@@ -688,7 +738,7 @@ function openExercisePicker(key) {
     for (const { ex, used } of items) {
       const label = q ? null : used ? 'Your exercises' : 'All exercises';
       if (label && label !== section) { section = label; list.append(h('div', { class: 'psec' }, label)); }
-      list.append(h('div', { class: 'choice', onclick: () => addToDay(key, ex) }, icon(ex), h('div', { class: 'grow' }, exerciseText(ex, '__'))));
+      list.append(h('div', { class: 'choice', onclick: () => addToDay(key, ex) }, icon(ex), h('div', { class: 'grow' }, exerciseText(ex))));
     }
   };
   search.addEventListener('input', draw);
@@ -723,7 +773,7 @@ function openEntryEditor(key, id) {
   const sets = entry.sets.map(cloneSpec);
   const setsWrap = h('div', {});
   const drawSets = () => {
-    setsWrap.replaceChildren(...sets.map((spec, i) => fieldDiv(sets.length > 1 ? `Set ${i + 1}` : 'Blocks', blockEditor(spec),
+    setsWrap.replaceChildren(...sets.map((spec, i) => fieldDiv(sets.length > 1 ? `Set ${i + 1}` : 'What you track', blockEditor(spec),
       sets.length > 1 ? h('button', { class: 'link', onclick: () => { sets.splice(i, 1); drawSets(); } }, 'Remove set') : null)));
   };
   drawSets();
@@ -802,7 +852,7 @@ function openExerciseForm(ex, afterSave) {
   });
   openSheet(ex ? 'Edit exercise' : 'New exercise',
     field('Name', name),
-    fieldDiv('Blocks', blockEditor(spec)),
+    fieldDiv('What you track', blockEditor(spec)),
     ex && ex.details ? h('p', { class: 'hint' }, `Old details: ${ex.details}`) : null,
     fieldDiv('Picture (optional)', h('div', {},
       h('label', { class: 'pill' }, 'Choose photo', photo),
@@ -825,7 +875,7 @@ function renderExercises() {
   list.textContent = '';
   const q = exSearch.value.trim().toLowerCase();
   for (const ex of sortedExercises().filter((x) => matches(x, q))) {
-    list.append(h('li', { onclick: () => openExerciseForm(ex) }, icon(ex, 'lg'), h('div', { class: 'grow' }, exerciseText(ex, '__'))));
+    list.append(h('li', { onclick: () => openExerciseForm(ex) }, icon(ex, 'lg'), h('div', { class: 'grow' }, exerciseText(ex))));
   }
   document.getElementById('exercise-empty').hidden = state.exercises.length > 0;
 }
