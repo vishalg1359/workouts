@@ -940,11 +940,142 @@ function renderExercises() {
   list.textContent = '';
   const q = exSearch.value.trim().toLowerCase();
   for (const ex of sortedExercises().filter((x) => matches(x, q))) {
-    list.append(h('li', { onclick: () => openExerciseForm(ex) }, icon(ex, 'lg'), h('div', { class: 'grow' }, exerciseText(ex))));
+    list.append(h('li', { onclick: () => openHistory(ex) }, icon(ex, 'lg'), h('div', { class: 'grow' }, exerciseText(ex))));
   }
   document.getElementById('exercise-empty').hidden = state.exercises.length > 0;
 }
 document.getElementById('new-exercise-btn').addEventListener('click', () => openExerciseForm(null));
+
+// ---------- exercise history: every logged day plus a chart of one number per day ----------
+const WEIGHT_UNITS = new Set(['lb', 'kg']);
+const SUM_UNITS = new Set(['min', 'sec', 'hr', 'mi', 'km', 'm', 'floors', 'steps', 'cal', 'rounds']);
+const numOf = (b) => { const n = parseFloat(String(b.value || '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
+function exerciseLogs(ex) {
+  const t = todayKey();
+  const name = ex.name.trim().toLowerCase();
+  return Object.entries(state.days).filter(([k]) => k <= t).sort(([a], [b]) => (a < b ? 1 : -1))
+    .flatMap(([key, day]) => day.entries.filter((e) => e.exerciseId === ex.id || (!state.exercises.some((x) => x.id === e.exerciseId) && e.name.trim().toLowerCase() === name))
+      .map((entry) => ({ key, day, entry })));
+}
+// One number per set group: weight in the profile unit (assisted counts as negative), sets × reps, etc.
+function setParts(spec) {
+  const w = weightUnit();
+  const out = { sets: 1, reps: null, weight: null, units: {} };
+  spec.forEach((b) => {
+    const n = numOf(b);
+    if (n == null) return;
+    if (b.unit === 'sets') out.sets = n;
+    else if (b.unit === 'reps') out.reps = n;
+    else if (WEIGHT_UNITS.has(b.unit)) {
+      const v = b.unit === w ? n : w === 'lb' ? n * 2.20462 : n / 2.20462;
+      out.weight = Math.round((b.join === '−' ? -v : v) * 10) / 10;
+    } else out.units[b.unit] = n;
+  });
+  return out;
+}
+function historyMetrics(logs) {
+  const parts = logs.map((l) => ({ key: l.key, sets: l.entry.sets.map(setParts) }));
+  const has = (f) => parts.some((p) => p.sets.some(f));
+  const metrics = [];
+  const w = weightUnit();
+  const series = (fn) => parts.map((p) => ({ key: p.key, v: fn(p.sets) })).filter((pt) => pt.v != null);
+  if (has((s) => s.weight != null)) {
+    metrics.push({ id: 'weight', label: 'Weight', unit: w, pts: series((ss) => { const v = ss.map((s) => s.weight).filter((x) => x != null); return v.length ? Math.max(...v) : null; }) });
+    if (has((s) => s.reps != null && s.weight != null)) {
+      metrics.push({ id: 'volume', label: 'Volume', unit: w, pts: series((ss) => { const v = ss.filter((s) => s.reps != null && s.weight != null && s.weight > 0); return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.reps * s.weight, 0)) : null; }) });
+    }
+  }
+  if (has((s) => s.reps != null)) {
+    metrics.push({ id: 'reps', label: 'Reps', unit: 'reps', pts: series((ss) => { const v = ss.filter((s) => s.reps != null); return v.length ? v.reduce((a, s) => a + s.sets * s.reps, 0) : null; }) });
+  }
+  const units = [...new Set(parts.flatMap((p) => p.sets.flatMap((s) => Object.keys(s.units))))];
+  units.forEach((u) => {
+    const sum = SUM_UNITS.has(u);
+    metrics.push({ id: `u:${u}`, label: u === 'min' ? 'Time' : u === 'level' ? 'Level' : u, unit: u, pts: series((ss) => {
+      const v = ss.map((s) => (s.units[u] == null ? null : (sum ? s.sets : 1) * s.units[u])).filter((x) => x != null);
+      if (!v.length) return null;
+      return Math.round((sum ? v.reduce((a, b) => a + b, 0) : Math.max(...v)) * 10) / 10;
+    }) });
+  });
+  if (units.includes('level') && units.includes('min')) {
+    metrics.push({ id: 'effort', label: 'Effort', unit: 'level × min', pts: series((ss) => {
+      const v = ss.filter((s) => s.units.level != null && s.units.min != null);
+      return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.units.level * s.units.min, 0)) : null;
+    }) });
+  }
+  return metrics.filter((m) => m.pts.length);
+}
+function historyChart(metric, onPick) {
+  const pts = metric.pts.slice().reverse();
+  const W = 320, H = 150, L = 34, R = 12, T = 14, B = 22;
+  const xs = pts.map((p) => dateOf(p.key).getTime());
+  const vs = pts.map((p) => p.v);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = Math.min(...vs), y1 = Math.max(...vs);
+  if (y0 === y1) { y0 -= 1; y1 += 1; }
+  const pad = (y1 - y0) * 0.12;
+  y0 -= pad; y1 += pad;
+  const X = (x) => (x1 === x0 ? (L + W - R) / 2 : L + ((x - x0) / (x1 - x0)) * (W - L - R));
+  const Y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text != null) e.textContent = text; return e; };
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'hchart' });
+  const fmtV = (v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v * 10) / 10));
+  const hi = Math.max(...vs), lo = Math.min(...vs);
+  [[hi, Y(hi)], [lo, Y(lo)]].forEach(([v, y], i) => {
+    if (i && hi === lo) return;
+    svg.append(el('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'hgrid' }), el('text', { x: L - 6, y: y + 4, class: 'hlabel', 'text-anchor': 'end' }, fmtV(v)));
+  });
+  const short = (k) => fmt(dateOf(k), { month: 'short', day: 'numeric' });
+  svg.append(el('text', { x: L, y: H - 6, class: 'hlabel' }, short(pts[0].key)));
+  if (pts.length > 1) svg.append(el('text', { x: W - R, y: H - 6, class: 'hlabel', 'text-anchor': 'end' }, short(pts[pts.length - 1].key)));
+  if (pts.length > 1) svg.append(el('polyline', { points: pts.map((p, i) => `${X(xs[i])},${Y(p.v)}`).join(' '), class: 'hline' }));
+  pts.forEach((p, i) => {
+    const g = el('g', { class: 'hdot', 'data-key': p.key });
+    g.append(el('circle', { cx: X(xs[i]), cy: Y(p.v), r: 14, class: 'hhit' }), el('circle', { cx: X(xs[i]), cy: Y(p.v), r: 4.5, class: 'hpt' }));
+    g.addEventListener('click', () => onPick(p));
+    svg.append(g);
+  });
+  return svg;
+}
+function defaultMetric(metrics) {
+  return (metrics.find((m) => m.id === 'weight') || metrics.find((m) => m.id === 'reps') || metrics.find((m) => m.id === 'u:min') || metrics[0] || {}).id;
+}
+function openHistory(ex) {
+  const logs = exerciseLogs(ex);
+  const metrics = historyMetrics(logs);
+  let current = defaultMetric(metrics);
+  const chartWrap = h('div', { class: 'hchart-wrap' });
+  const readout = h('div', { class: 'hreadout' });
+  const chips = h('div', { class: 'hchips' });
+  const rows = h('div', {});
+  const show = (m, v) => (m.id === 'weight' && v < 0 ? `assist ${-v} ${m.unit}` : `${v} ${m.unit}`);
+  const pick = (p) => {
+    const m = metrics.find((x) => x.id === current);
+    readout.textContent = `${fmt(dateOf(p.key), { weekday: 'short', month: 'short', day: 'numeric' })} · ${show(m, p.v)}`;
+    chartWrap.querySelectorAll('.hdot').forEach((d) => d.classList.toggle('on', d.dataset.key === p.key));
+    rows.querySelectorAll('.hrow').forEach((r) => r.classList.toggle('on', r.dataset.key === p.key));
+    const row = rows.querySelector(`.hrow[data-key="${p.key}"]`);
+    if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+  const draw = () => {
+    const m = metrics.find((x) => x.id === current);
+    chips.replaceChildren(...metrics.map((x) => h('button', { class: `hchip${x.id === current ? ' on' : ''}`, onclick: () => { current = x.id; draw(); } }, x.label)));
+    chartWrap.replaceChildren(m ? historyChart(m, pick) : '');
+    const last = m && m.pts[0];
+    readout.textContent = last ? `Latest · ${show(m, last.v)}` : '';
+  };
+  rows.replaceChildren(...logs.map(({ key, day, entry }) => h('div', { class: 'hrow', 'data-key': key },
+    h('div', { class: 'hdate' }, fmt(dateOf(key), { weekday: 'short', month: 'short', day: 'numeric', year: dateOf(key).getFullYear() === today().getFullYear() ? undefined : 'numeric' }),
+      day.name.trim() ? h('span', { class: 'hday' }, ` · ${day.name}`) : null),
+    entry.sets.map(doneSummary).filter(Boolean).map((t) => h('div', { class: 'set-text' }, t)))));
+  if (metrics.length) draw();
+  openSheet(ex.name,
+    h('button', { class: 'btn small', onclick: () => openExerciseForm(ex) }, 'Edit exercise'),
+    logs.length ? null : h('p', { class: 'hint' }, 'No history yet. Log this exercise on a day and it shows up here.'),
+    metrics.length ? h('div', { class: 'hbox' }, chips, readout, chartWrap) : null,
+    rows);
+}
 const exSearch = document.getElementById('exercise-search');
 exSearch.addEventListener('input', renderExercises);
 
