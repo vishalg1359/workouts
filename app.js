@@ -606,6 +606,7 @@ function refreshDay(key) {
     if (old) old.replaceWith(renderDay(key));
   });
   if (key === dayViewKey()) renderToday();
+  if (calMode === 'grid') renderMonthGrid();
   if (padField && !padField.isConnected) closePad();
 }
 
@@ -647,6 +648,52 @@ function lastDayBar(key) {
       h('span', { class: 'wcaret' }, lastDayOpen ? '▴' : '▾')),
     lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null);
 }
+// ---------- Calendar month grid ----------
+let calMode = 'list';
+let gridMonth = null;
+function renderMonthGrid() {
+  const root = document.getElementById('month');
+  const t = todayKey();
+  if (!gridMonth) { const d = dateOf(t); gridMonth = new Date(d.getFullYear(), d.getMonth(), 1); }
+  const y = gridMonth.getFullYear(), m = gridMonth.getMonth();
+  const step = (n) => { gridMonth = new Date(y, m + n, 1); renderMonthGrid(); };
+  const cells = [];
+  const lead = new Date(y, m, 1).getDay();
+  for (let i = 0; i < lead; i++) cells.push(h('div', { class: 'mcell blank' }));
+  const days = new Date(y, m + 1, 0).getDate();
+  for (let n = 1; n <= days; n++) {
+    const k = keyOf(new Date(y, m, n));
+    const day = getDay(k);
+    const entries = day ? day.entries : [];
+    const rest = isRestDay(k, day) || (k < t && !entries.length);
+    const color = rest ? '' : dayColor(day);
+    const name = day && day.name.trim();
+    cells.push(h('div', { class: `mcell${k === t ? ' today' : ''}${k > t ? ' future' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}`,
+      style: color ? `--day:${color}` : null, onclick: () => openDaySheet(k) },
+      h('span', { class: 'mnum' }, String(n)),
+      name && !rest ? h('span', { class: 'mtype' }, name) : null,
+      entries.length ? h('span', { class: 'mbars' }, entries.slice(0, 4).map(() => h('i')), entries.length > 4 ? h('b', {}, `+${entries.length - 4}`) : null) : null));
+  }
+  root.replaceChildren(
+    h('div', { class: 'mnav' },
+      h('button', { class: 'pill', 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'),
+      h('span', { class: 'mtitle' }, fmt(gridMonth, { month: 'long', year: 'numeric' })),
+      h('button', { class: 'pill', 'aria-label': 'Next month', onclick: () => step(1) }, '›')),
+    h('div', { class: 'mgrid mdow' }, ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => h('span', {}, d))),
+    h('div', { class: 'mgrid' }, cells));
+}
+function setCalMode(mode) {
+  calMode = mode;
+  const grid = mode === 'grid';
+  document.getElementById('month').hidden = !grid;
+  feedEl.hidden = grid;
+  document.getElementById('cal-toggle').textContent = grid ? 'List' : 'Month';
+  document.getElementById('log-title').textContent = grid ? 'Calendar' : document.getElementById('log-title').textContent;
+  if (grid) { gridMonth = null; renderMonthGrid(); window.scrollTo(0, 0); }
+  else requestAnimationFrame(() => { scrollToToday(false); updateTitle(); });
+}
+document.getElementById('cal-toggle').addEventListener('click', () => setCalMode(calMode === 'grid' ? 'list' : 'grid'));
+
 // The Today tab shows one day: today by default, or an earlier day picked from the title (never the future).
 let viewDay = null;
 const dayViewKey = () => (viewDay && viewDay < todayKey() ? viewDay : todayKey());
@@ -714,7 +761,7 @@ function scrollToKey(key, smooth, alignEnd) {
     : alignEnd && fits ? r.bottom - bottom : r.top - top;
   window.scrollBy({ top: delta, behavior: smooth ? 'smooth' : 'auto' });
 }
-const scrollToToday = (smooth) => { if (logActive()) scrollToKey(todayKey(), smooth, 'center'); };
+const scrollToToday = (smooth) => { if (logActive() && calMode === 'list') scrollToKey(todayKey(), smooth, 'center'); };
 
 function jumpTo(key) {
   const d = dateOf(key);
@@ -763,6 +810,7 @@ window.addEventListener('scroll', () => {
   requestAnimationFrame(() => { titleQueued = false; updateTitle(); });
 }, { passive: true });
 
+document.getElementById('today-btn').addEventListener('click', () => { if (calMode === 'grid') { gridMonth = null; renderMonthGrid(); } });
 document.getElementById('today-btn').addEventListener('click', () => scrollToToday(true));
 const jumpInput = document.getElementById('jump-input');
 jumpInput.addEventListener('change', () => { if (jumpInput.value) jumpTo(jumpInput.value); });
