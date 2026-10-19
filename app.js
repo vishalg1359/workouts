@@ -654,6 +654,7 @@ function openSheet(title, ...content) {
   sheetBody.scrollTop = 0;
 }
 let sheetAnchor = null;
+let restoreTimer = null;
 function closeSheet() {
   sheet.hidden = true;
   backdrop.hidden = true;
@@ -664,7 +665,8 @@ function closeSheet() {
   if (!a) return;
   // The iPhone keyboard can shift the page while it closes, so restore again once it has settled.
   requestAnimationFrame(() => { restoreAnchor(a); checkSentinels(); });
-  setTimeout(() => restoreAnchor(a), 450);
+  clearTimeout(restoreTimer);
+  restoreTimer = setTimeout(() => restoreAnchor(a), 450);
 }
 
 // Sheets never scroll the calendar behind them; dragging down from the top closes them.
@@ -1267,6 +1269,7 @@ function padNext() {
   if (next) openPad(next); else closePad();
 }
 function openPad(field) {
+  clearTimeout(restoreTimer);
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   if (padField) padField.classList.remove('active');
   padField = field;
