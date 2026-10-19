@@ -1439,6 +1439,14 @@ document.addEventListener('pointerdown', (e) => {
 }, true);
 
 // ---------- start ----------
+// The browser must not restore an old scroll position on reload (it lands on the top of the feed); we always center today.
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+  if (hiddenAt && Date.now() - hiddenAt > 120000 && logActive() && sheet.hidden && !padField) scrollToToday(false);
+});
+window.addEventListener('pageshow', (e) => { if (e.persisted && logActive()) scrollToToday(false); });
 seedStarters();
 applyTheme();
 initRange();
