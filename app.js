@@ -507,10 +507,10 @@ function renderDay(key, editable = false) {
         dayTypeButton(key, day));
   const toggle = () => { if (open) expandedDays.delete(key); else expandedDays.add(key); refreshDay(key); };
   return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${!past && !isToday ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}${folded ? ' folded' : ''}${open ? ' open' : ''}`,
-    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: folded ? toggle : locked ? (isToday ? () => showView('today') : () => openDaySheet(key)) : null },
+    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: folded ? toggle : locked ? () => openDaySheet(key) : null },
     head,
     past && !entries.length ? h('div', { class: 'empty-slot' }, h('span', {}, '☾ rest day')) : null,
-    isToday && locked && !entries.length ? h('div', { class: 'empty-slot today-slot' }, h('span', {}, 'tap to log today')) : null,
+    isToday && locked && !entries.length ? h('div', { class: 'empty-slot today-slot' }, h('span', {}, 'nothing logged yet')) : null,
     folded ? h('div', { class: 'wbar' },
       h('span', { class: 'wtype' }, named ? day.name : 'Workout'),
       h('span', { class: 'wlist' }, open ? `${entries.length} exercise${entries.length > 1 ? 's' : ''}` : entries.map((e) => e.name).join(', ')),
@@ -521,7 +521,7 @@ function renderDay(key, editable = false) {
       if (lt) w.lastChild.append(lt);
       return w;
     })) : null,
-    open ? h('button', { class: 'edit-day', onclick: (e) => { e.stopPropagation(); if (isToday) showView('today'); else openDaySheet(key); } }, isToday ? 'Open Today' : 'Edit day') : null,
+    open ? h('button', { class: 'edit-day', onclick: (e) => { e.stopPropagation(); openDaySheet(key); } }, 'Edit day') : null,
     locked ? null : h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ add exercise'));
 }
 
@@ -583,7 +583,7 @@ function openDaySheet(key) {
     h('button', { class: 'btn primary', onclick: () => openExercisePicker(key) }, '+ Add exercise'));
 }
 // After editing something on a past day, go back to that day's sheet instead of closing.
-const afterDayEdit = (key) => { save(); refreshDay(key); if (isLocked(key)) openDaySheet(key); else closeSheet(); };
+const afterDayEdit = (key) => { save(); refreshDay(key); if (isLocked(key) || logActive()) openDaySheet(key); else closeSheet(); };
 function refreshDay(key) {
   keepAnchor(() => {
     const old = feedEl.querySelector(`[data-key="${key}"]`);
@@ -624,13 +624,12 @@ function lastDayBar(key) {
   if (!k) return null;
   const d = state.days[k];
   const color = dayColor(d);
-  // Exercises sit above the title bar, so opening it grows the box upward while the bar stays at the bottom.
   return h('div', { class: `lastday${lastDayOpen ? ' open' : ''}`, style: color ? `--day:${color}` : null },
-    lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null,
     h('button', { class: 'wbar', onclick: () => { lastDayOpen = !lastDayOpen; renderToday(); } },
       h('span', { class: 'wtype' }, `Last ${d.name}`),
       h('span', { class: 'wlist' }, fmt(dateOf(k), { weekday: 'short', month: 'short', day: 'numeric' })),
-      h('span', { class: 'wcaret' }, lastDayOpen ? '▾' : '▴')));
+      h('span', { class: 'wcaret' }, lastDayOpen ? '▴' : '▾')),
+    lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null);
 }
 function renderToday() {
   const root = document.getElementById('today');
@@ -902,7 +901,8 @@ function addToDay(key, ex) {
   if (ex.details) entry.details = ex.details;
   ensureDay(key).entries.push(entry);
   save();
-  if (isLocked(key)) { entry.done = true; refreshDay(key); openEntryEditor(key, entry.id); return; }
+  const inline = !isLocked(key) && document.getElementById('view-today').classList.contains('active');
+  if (!inline) { entry.done = true; refreshDay(key); openEntryEditor(key, entry.id); return; }
   closeSheet();
   refreshDay(key);
   const blank = document.querySelector('#today .ex-wrap:last-child .nf');
