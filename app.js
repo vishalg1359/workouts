@@ -579,10 +579,12 @@ function scrollToKey(key, smooth, alignEnd) {
   const top = topInset() + 8;
   const bottom = bottomInset() - 8;
   const r = el.getBoundingClientRect();
-  const delta = alignEnd && r.height <= bottom - top ? r.bottom - bottom : r.top - top;
+  const fits = r.height <= bottom - top;
+  const delta = alignEnd === 'center' && fits ? r.top + r.height / 2 - (top + bottom) / 2
+    : alignEnd && fits ? r.bottom - bottom : r.top - top;
   window.scrollBy({ top: delta, behavior: smooth ? 'smooth' : 'auto' });
 }
-const scrollToToday = (smooth) => scrollToKey(todayKey(), smooth, true);
+const scrollToToday = (smooth) => scrollToKey(todayKey(), smooth, 'center');
 
 function jumpTo(key) {
   const d = dateOf(key);
@@ -1195,13 +1197,12 @@ setTimeout(() => { if (cloud.dirty) backupNow(); }, 3000);
 renderCloud();
 
 // ---------- tabs ----------
-let logScroll = null;
+// Coming back to the Calendar tab always centers today.
 function showView(name) {
   const wasLog = document.getElementById('view-log').classList.contains('active');
-  if (wasLog && name !== 'log') logScroll = window.scrollY;
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === name));
-  if (name === 'log' && !wasLog && logScroll != null) window.scrollTo(0, logScroll);
+  if (name === 'log' && !wasLog) { scrollToToday(false); updateTitle(); }
   else if (name !== 'log') window.scrollTo(0, 0);
   if (name === 'profile') renderCloud();
 }
