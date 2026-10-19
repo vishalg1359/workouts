@@ -331,8 +331,9 @@ function doneSummary(spec) {
     .join(' ');
 }
 
-// Past days are read-only in the feed; tap the day to edit it in a sheet.
+// Only today is editable in the feed; tap any other day to edit it in a sheet.
 const isPast = (key) => key < todayKey();
+const isLocked = (key) => key !== todayKey();
 function renderReadOnlyEntry(entry) {
   return h('div', { class: 'ex-wrap' }, h('div', { class: 'ex done' },
     h('div', { class: 'ex-head' }, icon(entry, 'sm'), h('span', { class: 'ename' }, entry.name)),
@@ -340,7 +341,7 @@ function renderReadOnlyEntry(entry) {
     entry.details ? h('div', { class: 'edetails' }, entry.details) : null));
 }
 function renderEntry(key, entry) {
-  if (isPast(key)) return renderReadOnlyEntry(entry);
+  if (isLocked(key)) return renderReadOnlyEntry(entry);
   const done = isDone(key, entry);
   const head = h('div', { class: 'ex-head' },
     icon(entry, 'sm'),
@@ -452,21 +453,22 @@ function renderDay(key) {
   const rest = isRestDay(key, day);
   const color = dayColor(day);
   const past = isPast(key);
+  const locked = isLocked(key);
   const named = day && day.name.trim();
-  const head = past
+  const head = locked
     ? h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
-        named ? h('span', { class: 'dayname static' }, day.name) : null,
-        !entries.length && !named ? h('span', { class: 'empty-box', 'aria-label': 'Nothing logged' }) : null)
+        named ? h('span', { class: 'dayname static' }, day.name) : null)
     : h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
         isToday ? h('span', { class: 'tpill' }, 'Today') : null,
         nameField(key, day),
         h('button', { class: 'chip', 'aria-label': 'Pick a day name', onclick: () => openPresetPicker(key) }, '▾'),
         h('button', { class: 'chip add', 'aria-label': 'Add exercise', onclick: () => openExercisePicker(key) }, '+'));
-  return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}`,
-    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: past ? () => openDaySheet(key) : null },
+  return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${locked && !past ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}`,
+    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: locked ? () => openDaySheet(key) : null },
     head,
+    past && !entries.length && !named ? h('div', { class: 'empty-slot' }, h('span', {}, '☾ rest day')) : null,
     entries.length ? h('div', { class: 'exs' }, entries.map((e) => renderEntry(key, e))) : null);
 }
 
@@ -517,7 +519,7 @@ function openDaySheet(key) {
     h('button', { class: 'btn primary', onclick: () => openExercisePicker(key) }, '+ Add exercise'));
 }
 // After editing something on a past day, go back to that day's sheet instead of closing.
-const afterDayEdit = (key) => { save(); refreshDay(key); if (isPast(key)) openDaySheet(key); else closeSheet(); };
+const afterDayEdit = (key) => { save(); refreshDay(key); if (isLocked(key)) openDaySheet(key); else closeSheet(); };
 function refreshDay(key) {
   keepAnchor(() => {
     const old = feedEl.querySelector(`[data-key="${key}"]`);
@@ -703,7 +705,7 @@ function addToDay(key, ex) {
   if (ex.details) entry.details = ex.details;
   ensureDay(key).entries.push(entry);
   save();
-  if (isPast(key)) { entry.done = true; refreshDay(key); openEntryEditor(key, entry.id); return; }
+  if (isLocked(key)) { entry.done = true; refreshDay(key); openEntryEditor(key, entry.id); return; }
   closeSheet();
   refreshDay(key);
   const blank = feedEl.querySelector(`[data-key="${key}"] .ex-wrap:last-child .val`);
@@ -741,7 +743,7 @@ function openEntryEditor(key, id) {
       entry.sets = sets;
       done();
     } }, 'Save'),
-    isPast(key) ? null : isDone(key, entry)
+    isLocked(key) ? null : isDone(key, entry)
       ? h('button', { class: 'btn', onclick: () => { entry.done = false; done(); } }, 'Edit sets on the day')
       : h('button', { class: 'btn', onclick: () => { entry.done = true; done(); } }, 'Mark done'),
     h('div', { class: 'btn-row' },

@@ -90,7 +90,20 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 .day.past { cursor: pointer; }
 .day.past .dhead { min-height: 38px; }
 .dayname.static { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.empty-box { flex: 1; height: 16px; border: 1.5px dashed var(--line); border-radius: 7px; opacity: 0.9; }
+.day.future { cursor: pointer; }
+.day.future .dhead { min-height: 34px; }
+.day.future .ddate { font-size: 13px; font-weight: 600; opacity: 0.55; }
+.day.future.has .ddate, .day.future .dayname.static { opacity: 0.75; }
+.day.future .ex { opacity: 0.7; }
+.empty-slot {
+  margin: 0 0 6px 2px; height: 30px; border-radius: 9px; display: flex; align-items: center; padding: 0 12px;
+  background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--fg) 6%, transparent) 50%, transparent 80%) 0 0 / 300% 100%,
+    color-mix(in srgb, var(--fg) 3%, transparent);
+  animation: shimmer 3.2s ease-in-out infinite;
+}
+.empty-slot span { font-size: 12px; font-style: italic; color: var(--muted); opacity: 0.75; letter-spacing: 0.02em; }
+@keyframes shimmer { from { background-position: 100% 0, 0 0; } to { background-position: 0 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .empty-slot { animation: none; } }
 .day-name-row { display: flex; align-items: center; gap: 8px; }
 .day-name-row .dayname { border-bottom: 1px solid var(--line); }
 .cname { font-weight: 700; }
