@@ -186,10 +186,10 @@ function fillOptions(sel, kind, current) {
   const opts = state[L.key].slice();
   if (L.blank) opts.push('');
   if (current && !opts.includes(current)) opts.push(current);
-  sel.replaceChildren(...opts.map((o) => h('option', { value: o }, o === '' ? '—' : o)),
+  sel.replaceChildren(...opts.map((o) => h('option', { value: o }, o === '' ? 'none' : o)),
     h('option', { value: OTHER }, 'other…'), h('option', { value: EDIT }, 'edit list…'));
   sel.value = current;
-  sel.style.width = `calc(${Math.max(1, (current || '—').length)}ch + 12px)`;
+  sel.style.width = `calc(${Math.max(1, (current || 'none').length)}ch + 12px)`;
 }
 function listSelect(kind, block, onChange, label) {
   const L = LISTS[kind];
