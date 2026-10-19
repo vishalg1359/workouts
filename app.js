@@ -5,7 +5,30 @@ const DEFAULT_PRESETS = ['Upper Day', 'Lower Day', 'Push Day', 'Pull Day', 'Leg 
 const DEFAULT_PRESET_COLORS = { 'upper day': '#2563eb', 'lower day': '#16a34a', 'push day': '#dc2626', 'pull day': '#7c3aed', 'leg day': '#d97706', 'mobility day': '#0d9488' };
 const DEFAULT_PROFILE = { name: '', birthday: '', units: 'imperial', heightCm: null, weightKg: null, theme: 'auto', accent: '#1e40af', pop: '#f97316' };
 const UNITS = ['sets', 'reps', 'lb', 'kg', 'sec', 'min', 'hr', 'mi', 'km', 'm', 'rounds', 'cal'];
-const JOINS = ['×', 'at', 'for', '@', 'of', '+', '/'];
+const JOINS = ['×', 'at', 'for', 'in', '@', 'of', '+', '−', '/'];
+const PREFIX_UNITS = new Set(['level']);
+const SIGNS = { '+': '−', '−': '+' };
+
+// Starter library: [name, icon, spec]. Spec blocks are 'join|unit'; W = the profile weight unit. Order = popularity.
+const STARTERS = [
+  ['bench press', 'bench.png', 'L'], ['squats', 'squat', 'L'], ['deadlift', 'deadlift', 'L'], ['pull-ups', 'pullup', 'B'],
+  ['dumbbell bench press', 'db-bench', 'L'], ['incline bench press', 'incline', 'L'], ['overhead press', 'ohp', 'L'],
+  ['barbell rows', 'bb-row', 'L'], ['lat pulldown', 'pulldown', 'L'], ['cable rows', 'cable-row', 'L'], ['bicep curls', 'curl', 'L'],
+  ['tricep pushdowns', 'pushdown', 'L'], ['leg press', 'legpress', 'L'], ['romanian deadlift', 'rdl', 'L'], ['lunges', 'lunge', 'L'],
+  ['push-ups', 'pushup', 'R'], ['plank', 'plank', 'T'], ['treadmill', 'treadmill', ['|mph', 'for|min', 'at|% incline']],
+  ['incline dumbbell press', 'db-incline', 'L'], ['dumbbell rows', 'db-row', 'L'], ['dumbbell shoulder press', 'db-ohp', 'L'],
+  ['lateral raises', 'lateral', 'L'], ['goblet squats', 'goblet', 'L'], ['hammer curls', 'curl', 'L'], ['tricep extensions', 'tricep', 'L'],
+  ['leg extensions', 'legext', 'L'], ['leg curls', 'legcurl', 'L'], ['hip thrusts', 'hipthrust', 'L'], ['calf raises', 'calf', 'L'],
+  ['dips', 'dip', 'B'], ['chin-ups', 'pullup', 'B'], ['stairmaster', 'stairs', ['|level', 'for|min']],
+  ['stationary bike', 'bike', ['|level', 'for|min']], ['rowing machine', 'rower', ['|m', 'in|min']], ['elliptical', 'elliptical', ['|level', 'for|min']],
+  ['running', 'run', ['|mi', 'in|min']], ['walking', 'walk', ['|mi', 'in|min']], ['cable fly', 'fly', 'L'], ['face pulls', 'face-pull', 'L'],
+  ['shrugs', 'shrug', 'L'], ['bulgarian split squats', 'split', 'L'], ['front squats', 'squat', 'L'], ['kettlebell swings', 'kb-swing', 'L'],
+  ['crunches', 'crunch', 'R'], ['hanging leg raises', 'legraise', 'R'], ['russian twists', 'twist', 'R'], ['jump rope', 'rope', ['|min']],
+  ['swimming', 'swim', ['|m', 'in|min']], ['stretching', 'stretch', ['|min']],
+];
+const SPEC_SHAPES = { L: ['|sets', '×|reps', 'at|W'], B: ['|sets', '×|reps', '+|W'], R: ['|sets', '×|reps'], T: ['|sets', 'for|sec'] };
+const STARTER_RANK = new Map(STARTERS.map(([n], i) => [n, i]));
+const iconPath = (file) => `icons/${file.includes('.') ? file : `${file}.svg`}`;
 const OTHER = '\u0000other';
 const EDIT = '\u0000edit';
 const PAGE_DAYS = 60;
@@ -28,6 +51,7 @@ function normalize(s) {
     profile: { ...DEFAULT_PROFILE, ...(s.profile || {}) },
     units: Array.isArray(s.units) ? s.units : UNITS.slice(),
     joins: Array.isArray(s.joins) ? s.joins.filter(Boolean) : JOINS.slice(),
+    seed: s.seed || 0,
   };
 }
 function load() {
@@ -40,7 +64,26 @@ function load() {
   return normalize({});
 }
 let state = load();
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+// Adds the starter library once. Existing exercises with the same name keep their data and just gain the icon.
+function seedStarters() {
+  if (state.seed >= 1) return;
+  const w = weightUnit();
+  const byName = new Map(state.exercises.map((e) => [e.name.trim().toLowerCase(), e]));
+  for (const [name, file, shape] of STARTERS) {
+    const have = byName.get(name);
+    if (have) { if (!have.icon && !have.image) have.icon = iconPath(file); continue; }
+    const spec = (typeof shape === 'string' ? SPEC_SHAPES[shape] : shape).map((b, i) => {
+      const [join, unit] = b.split('|');
+      return { join: i ? join : '', value: '', unit: unit === 'W' ? w : unit };
+    });
+    state.exercises.push({ id: uid(), name, spec, image: '', icon: iconPath(file) });
+  }
+  for (const u of ['level', 'mph', '% incline']) if (!state.units.includes(u)) state.units.push(u);
+  for (const j of ['in', '−']) if (!state.joins.includes(j)) state.joins.push(j);
+  state.seed = 1;
+  save();
+}function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -79,7 +122,9 @@ const isImage = (u) => /^(https?:\/\/\S+|data:image\/)/i.test((u || '').trim());
 function icon(item, size) {
   const cls = `ico${size ? ` ${size}` : ''}`;
   const letter = h('div', { class: `${cls} letter` }, (item.name || '?').trim().charAt(0) || '?');
-  if (!isImage(item.image)) return letter;
+  if (!isImage(item.image)) {
+    return item.icon ? h('div', { class: `${cls} glyph` }, h('span', { style: `--m: url(${item.icon})` })) : letter;
+  }
   const img = h('img', { class: cls, src: item.image.trim(), alt: '', referrerpolicy: 'no-referrer' });
   img.addEventListener('error', () => img.replaceWith(letter));
   return img;
@@ -95,8 +140,10 @@ function specSummary(spec, blankMark) {
     const parts = [];
     if (i > 0 && b.join) parts.push(b.join);
     const v = String(b.value || '').trim();
+    const pre = PREFIX_UNITS.has(b.unit);
+    if (pre) parts.push(b.unit);
     if (v || blankMark) parts.push(v || blankMark);
-    if (b.unit) parts.push(b.unit);
+    if (b.unit && !pre) parts.push(b.unit);
     return parts.join(' ');
   }).filter(Boolean).join(' ');
 }
@@ -185,9 +232,12 @@ function valueInput(block, onChange) {
 // Inline blocks on a logged entry: fill in numbers, switch units.
 function specInline(spec, onChange) {
   return h('div', { class: 'spec' }, spec.map((b, i) => h('span', { class: 'blk' },
-    i > 0 && b.join ? h('span', { class: 'jw' }, b.join) : null,
+    i > 0 && b.join ? (SIGNS[b.join]
+      ? h('button', { class: 'jw sign', 'aria-label': 'Switch plus / minus', onclick: (e) => { b.join = SIGNS[b.join]; e.currentTarget.textContent = b.join; onChange(); } }, b.join)
+      : h('span', { class: 'jw' }, b.join)) : null,
+    PREFIX_UNITS.has(b.unit) ? unitSelect(b, onChange) : null,
     valueInput(b, onChange),
-    unitSelect(b, onChange))));
+    PREFIX_UNITS.has(b.unit) ? null : unitSelect(b, onChange))));
 }
 
 // Block builder used in the exercise form and entry editor.
@@ -277,7 +327,7 @@ const isDone = (key, entry) => (entry.done == null ? key < todayKey() : entry.do
 
 function doneSummary(spec) {
   return spec.filter((b) => String(b.value || '').trim())
-    .map((b, i) => [i > 0 ? b.join : '', String(b.value).trim(), b.unit].filter(Boolean).join(' '))
+    .map((b, i) => [i > 0 ? b.join : '', ...(PREFIX_UNITS.has(b.unit) ? [b.unit, String(b.value).trim()] : [String(b.value).trim(), b.unit])].filter(Boolean).join(' '))
     .join(' ');
 }
 
@@ -576,6 +626,26 @@ function sortedExercises() {
   return state.exercises.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
 
+// Recency-weighted use count: each past use counts 0.5^(days ago / 21), so your current routine floats up.
+function usageScores() {
+  const scores = new Map();
+  const t = today().getTime();
+  for (const [k, d] of Object.entries(state.days)) {
+    const ago = (t - dateOf(k).getTime()) / 86400000;
+    if (ago < 0) continue;
+    const w = Math.pow(0.5, ago / 21);
+    for (const e of d.entries) scores.set(e.exerciseId, (scores.get(e.exerciseId) || 0) + w);
+  }
+  return scores;
+}
+function pickerOrder() {
+  const scores = usageScores();
+  const rank = (ex) => (STARTER_RANK.has(ex.name.trim().toLowerCase()) ? STARTER_RANK.get(ex.name.trim().toLowerCase()) : -1);
+  return state.exercises.slice().sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0) || rank(a) - rank(b) || a.name.localeCompare(b.name))
+    .map((ex) => ({ ex, used: scores.has(ex.id) }));
+}
+function matches(ex, q) { return !q || ex.name.toLowerCase().includes(q); }
+
 function openExercisePicker(key) {
   const search = h('input', { class: 'search', type: 'search', 'aria-label': 'Search exercises', ...NO_CAPS });
   const list = h('div', {});
@@ -583,20 +653,26 @@ function openExercisePicker(key) {
     const q = search.value.trim().toLowerCase();
     list.textContent = '';
     if (!state.exercises.length) list.append(h('p', { class: 'empty' }, 'No exercises yet.'));
-    for (const ex of sortedExercises().filter((x) => !q || x.name.toLowerCase().includes(q))) {
+    let items = pickerOrder().filter(({ ex }) => matches(ex, q));
+    if (q) items = items.filter(({ ex }) => ex.name.toLowerCase().startsWith(q)).concat(items.filter(({ ex }) => !ex.name.toLowerCase().startsWith(q)));
+    let section = null;
+    for (const { ex, used } of items) {
+      const label = q ? null : used ? 'Your exercises' : 'All exercises';
+      if (label && label !== section) { section = label; list.append(h('div', { class: 'psec' }, label)); }
       list.append(h('div', { class: 'choice', onclick: () => addToDay(key, ex) }, icon(ex), h('div', { class: 'grow' }, exerciseText(ex, '__'))));
     }
   };
   search.addEventListener('input', draw);
   draw();
   openSheet(`Add to ${fmt(dateOf(key), { weekday: 'short', month: 'short', day: 'numeric' })}`,
-    state.exercises.length > 6 ? search : null,
+    search,
     list,
     h('button', { class: 'btn', onclick: () => openExerciseForm(null, () => openExercisePicker(key)) }, '+ New exercise'));
 }
 
 function addToDay(key, ex) {
   const entry = { id: uid(), exerciseId: ex.id, name: ex.name, image: ex.image || '', sets: [cloneSpec(ex.spec)] };
+  if (ex.icon) entry.icon = ex.icon;
   if (ex.details) entry.details = ex.details;
   ensureDay(key).entries.push(entry);
   save();
@@ -717,12 +793,15 @@ function openExerciseForm(ex, afterSave) {
 function renderExercises() {
   const list = document.getElementById('exercise-list');
   list.textContent = '';
-  for (const ex of sortedExercises()) {
+  const q = exSearch.value.trim().toLowerCase();
+  for (const ex of sortedExercises().filter((x) => matches(x, q))) {
     list.append(h('li', { onclick: () => openExerciseForm(ex) }, icon(ex, 'lg'), h('div', { class: 'grow' }, exerciseText(ex, '__'))));
   }
   document.getElementById('exercise-empty').hidden = state.exercises.length > 0;
 }
 document.getElementById('new-exercise-btn').addEventListener('click', () => openExerciseForm(null));
+const exSearch = document.getElementById('exercise-search');
+exSearch.addEventListener('input', renderExercises);
 
 // ---------- profile ----------
 function applyTheme() {
@@ -878,6 +957,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------- start ----------
+seedStarters();
 applyTheme();
 initRange();
 renderFeed();

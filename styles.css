@@ -266,3 +266,8 @@ select.join { background: var(--bg2); color: var(--fg); }
 
 /* iOS zooms into any field under 16px; keep every field at 16px. */
 input, select, textarea { font-size: 16px !important; }
+.ico.glyph { display: grid; place-items: center; background: var(--accent-soft); }
+.ico.glyph > span { width: 82%; height: 82%; background: var(--ink); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
+.jw.sign { min-width: 22px; height: 26px; border-radius: 8px; background: var(--bg2); color: var(--fg); font-weight: 800; }
+.psec { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 14px 4px 4px; }
+.ex-search { display: block; width: calc(100% - 32px); margin: 0 16px 8px; box-sizing: border-box; }
