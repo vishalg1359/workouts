@@ -329,10 +329,11 @@ function initRange() {
 }
 
 const fmt = (d, o) => d.toLocaleDateString(undefined, o);
+// A past day with nothing logged is a rest day, whatever it was named.
 function isRestDay(key, day) {
   if (day && day.entries.length) return false;
-  if (day && day.name) return /\brest\b/i.test(day.name);
-  return key < todayKey();
+  if (key < todayKey()) return true;
+  return !!(day && /\brest\b/i.test(day.name));
 }
 const dayColor = (day) => (day && day.name ? state.presetColors[day.name.trim().toLowerCase()] : '') || '';
 
@@ -472,14 +473,14 @@ function renderDay(key) {
   const entries = day ? day.entries : [];
   const label = fmt(date, { weekday: 'short', month: 'short', day: 'numeric' });
   const rest = isRestDay(key, day);
-  const color = dayColor(day);
+  const color = rest ? '' : dayColor(day);
   const past = isPast(key);
   const locked = isLocked(key);
   const named = day && day.name.trim();
   const head = locked
     ? h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
-        named ? h('span', { class: 'dayname static' }, day.name) : null)
+        named && !(past && !entries.length) ? h('span', { class: 'dayname static' }, day.name) : null)
     : h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
         isToday ? h('span', { class: 'tpill' }, 'Today') : null,
@@ -488,7 +489,7 @@ function renderDay(key) {
   return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${locked && !past ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}`,
     style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: locked ? () => openDaySheet(key) : null },
     head,
-    past && !entries.length && !named ? h('div', { class: 'empty-slot' }, h('span', {}, '☾ rest day')) : null,
+    past && !entries.length ? h('div', { class: 'empty-slot' }, h('span', {}, '☾ rest day')) : null,
     entries.length ? h('div', { class: 'exs' }, entries.map((e) => renderEntry(key, e))) : null);
 }
 
