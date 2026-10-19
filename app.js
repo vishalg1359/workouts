@@ -494,19 +494,27 @@ function renderDay(key) {
   const past = isPast(key);
   const locked = isLocked(key);
   const named = day && day.name.trim();
+  const folded = past && entries.length > 0;
+  const open = folded && expandedDays.has(key);
   const head = locked
     ? h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
-        named && !(past && !entries.length) ? h('span', { class: 'dayname static' }, day.name) : null)
+        named && !past ? h('span', { class: 'dayname static' }, day.name) : null)
     : h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
         isToday ? h('span', { class: 'tpill' }, 'Today') : null,
         dayTypeButton(key, day));
-  return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${locked && !past ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}`,
-    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: locked ? () => openDaySheet(key) : null },
+  const toggle = () => { if (open) expandedDays.delete(key); else expandedDays.add(key); refreshDay(key); };
+  return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${locked && !past ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}${folded ? ' folded' : ''}${open ? ' open' : ''}`,
+    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: folded ? toggle : locked ? () => openDaySheet(key) : null },
     head,
     past && !entries.length ? h('div', { class: 'empty-slot' }, h('span', {}, '☾ rest day')) : null,
-    entries.length ? h('div', { class: 'exs' }, entries.map((e) => renderEntry(key, e))) : null,
+    folded ? h('div', { class: 'wbar' },
+      h('span', { class: 'wtype' }, named ? day.name : 'Workout'),
+      h('span', { class: 'wlist' }, open ? `${entries.length} exercise${entries.length > 1 ? 's' : ''}` : entries.map((e) => e.name).join(', ')),
+      h('span', { class: 'wcaret' }, open ? '▴' : '▾')) : null,
+    entries.length && (!folded || open) ? h('div', { class: 'exs' }, entries.map((e) => renderEntry(key, e))) : null,
+    open ? h('button', { class: 'edit-day', onclick: (e) => { e.stopPropagation(); openDaySheet(key); } }, 'Edit day') : null,
     locked ? null : h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ add exercise'));
 }
 
@@ -555,6 +563,8 @@ function dayTypeButton(key, day) {
     onclick: (e) => { e.stopPropagation(); openPresetPicker(key); } },
     h('span', { class: 'dtname' }, named ? day.name : rest ? '☾ Rest day' : 'Day type'), h('span', { class: 'caret' }, '▾'));
 }
+// Past workout days start collapsed each time the app opens; tapping one expands it in place.
+const expandedDays = new Set();
 function openDaySheet(key) {
   const day = getDay(key);
   const entries = day ? day.entries : [];

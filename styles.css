@@ -402,3 +402,21 @@ body.pad-open { padding-bottom: 320px; }
 .hrow.on { background: var(--accent-soft); border-radius: 10px; }
 .hdate { font-weight: 700; margin-bottom: 2px; }
 .hday { color: var(--muted); font-weight: 600; }
+
+/* Past workout days: a filled bar in the day type color; tap to expand. */
+.day.past.tinted, .day.past.tinted.has { box-shadow: none; background: none; }
+.wbar {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 6px 2px; min-height: 40px; padding: 0 12px; border-radius: 11px;
+  background: color-mix(in srgb, var(--day, var(--accent)) 16%, transparent);
+  box-shadow: inset 4px 0 0 var(--day, var(--accent));
+}
+.wtype { flex: none; font-weight: 800; font-size: 15px; color: var(--day, var(--ink)); }
+.wlist { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--muted); }
+.wcaret { flex: none; font-size: 11px; color: var(--muted); }
+.day.folded .dhead { min-height: 34px; }
+.day.open .exs { margin-top: 2px; }
+.edit-day { margin: 2px 0 8px 2px; padding: 6px 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--bg2); }
+
+/* Slightly bigger dates */
+.ddate { font-size: 17px; }
+.day.rest .ddate, .day.future .ddate { font-size: 15px; }
