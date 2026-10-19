@@ -267,7 +267,7 @@ function specInline(spec, onChange) {
       : h('span', { class: 'jw' }, b.join)) : null,
     h('span', { class: 'tile' },
       PREFIX_UNITS.has(b.unit) ? h('span', { class: 'ulabel pre' }, b.unit) : null,
-      valueInput(b, onChange),
+      numField(b, onChange),
       !PREFIX_UNITS.has(b.unit) && b.unit ? h('span', { class: 'ulabel' }, b.unit) : null)]));
 }
 
@@ -501,13 +501,13 @@ function renderDay(key) {
     : h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
         isToday ? h('span', { class: 'tpill' }, 'Today') : null,
-        dayTypeButton(key, day),
-        h('button', { class: 'chip add', 'aria-label': 'Add exercise', onclick: () => openExercisePicker(key) }, '+'));
+        dayTypeButton(key, day));
   return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${locked && !past ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}`,
     style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: locked ? () => openDaySheet(key) : null },
     head,
     past && !entries.length ? h('div', { class: 'empty-slot' }, h('span', {}, '☾ rest day')) : null,
-    entries.length ? h('div', { class: 'exs' }, entries.map((e) => renderEntry(key, e))) : null);
+    entries.length ? h('div', { class: 'exs' }, entries.map((e) => renderEntry(key, e))) : null,
+    locked ? null : h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ add exercise'));
 }
 
 function renderRange(from, to) {
@@ -550,9 +550,10 @@ function keepAnchor(fn) {
 
 function dayTypeButton(key, day) {
   const named = day && day.name.trim();
-  return h('button', { class: `daytype${named ? '' : ' empty'}`, 'aria-label': 'Pick a day type',
+  const rest = !named && !(day && day.entries.length);
+  return h('button', { class: `daytype${named ? '' : rest ? ' empty rest' : ' empty'}`, 'aria-label': 'Pick a day type',
     onclick: (e) => { e.stopPropagation(); openPresetPicker(key); } },
-    h('span', { class: 'dtname' }, named ? day.name : 'Day type'), h('span', { class: 'caret' }, '▾'));
+    h('span', { class: 'dtname' }, named ? day.name : rest ? '☾ Rest day' : 'Day type'), h('span', { class: 'caret' }, '▾'));
 }
 function openDaySheet(key) {
   const day = getDay(key);
@@ -567,6 +568,7 @@ function openDaySheet(key) {
 // After editing something on a past day, go back to that day's sheet instead of closing.
 const afterDayEdit = (key) => { save(); refreshDay(key); if (isLocked(key)) openDaySheet(key); else closeSheet(); };
 function refreshDay(key) {
+  if (padField && !padField.isConnected) closePad();
   keepAnchor(() => {
     const old = feedEl.querySelector(`[data-key="${key}"]`);
     if (old) old.replaceWith(renderDay(key));
@@ -645,6 +647,7 @@ function openSheet(title, ...content) {
   document.getElementById('sheet-title').textContent = title;
   sheetBody.textContent = '';
   sheetBody.append(...content.filter((c) => c != null && c !== false && c !== ''));
+  if (typeof closePad === 'function') closePad();
   if (sheet.hidden) sheetAnchor = captureAnchor();
   sheet.hidden = false;
   backdrop.hidden = false;
@@ -818,8 +821,8 @@ function addToDay(key, ex) {
   if (isLocked(key)) { entry.done = true; refreshDay(key); openEntryEditor(key, entry.id); return; }
   closeSheet();
   refreshDay(key);
-  const blank = feedEl.querySelector(`[data-key="${key}"] .ex-wrap:last-child .val`);
-  if (blank && !blank.value) blank.focus({ preventScroll: true });
+  const blank = feedEl.querySelector(`[data-key="${key}"] .ex-wrap:last-child .nf`);
+  if (blank && !blank.textContent) openPad(blank);
 }
 
 // ---------- edit an entry on a specific day ----------
@@ -1216,6 +1219,79 @@ document.addEventListener('visibilitychange', () => {
   renderFeed();
   scrollToToday(false);
 });
+
+// ---------- in-app number numPad (main screen numbers never open the iPhone keyboard) ----------
+function numField(block, onChange) {
+  const btn = h('button', { class: 'val nf', 'aria-label': block.unit || 'Value' }, block.value || '');
+  btn._block = block;
+  btn._onChange = onChange;
+  btn.addEventListener('click', () => openPad(btn));
+  return btn;
+}
+let padField = null;
+let padFresh = false;
+const numPad = h('div', { class: 'numpad', hidden: true });
+const padLabel = h('span', { class: 'np-label' });
+function padKey(label, fn, cls = '') { return h('button', { class: `np-key ${cls}`, onclick: fn }, label); }
+numPad.append(
+  h('div', { class: 'np-top' }, padLabel, h('button', { class: 'np-done', onclick: () => closePad() }, 'Done')),
+  h('div', { class: 'np-grid' },
+    ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((d) => padKey(d, () => padType(d))),
+    padKey('⌫', () => padBack(), 'np-back'),
+    padKey('Next', () => padNext(), 'np-next')));
+document.body.append(numPad);
+function setPadValue(v) {
+  const b = padField._block;
+  b.value = v;
+  padField.textContent = v;
+  padField._onChange();
+}
+function padType(d) {
+  if (!padField) return;
+  const cur = padFresh ? '' : String(padField._block.value || '');
+  padFresh = false;
+  if (d === '.' && cur.includes('.')) return;
+  if (cur.length >= 7) return;
+  setPadValue(cur === '0' && d !== '.' ? d : cur + d);
+}
+function padBack() {
+  if (!padField) return;
+  padFresh = false;
+  setPadValue(String(padField._block.value || '').slice(0, -1));
+}
+function padNext() {
+  if (!padField) return;
+  const day = padField.closest('.day');
+  const all = day ? [...day.querySelectorAll('.nf')] : [];
+  const next = all[all.indexOf(padField) + 1];
+  if (next) openPad(next); else closePad();
+}
+function openPad(field) {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  if (padField) padField.classList.remove('active');
+  padField = field;
+  padFresh = true;
+  field.classList.add('active');
+  padLabel.textContent = field._block.unit || '';
+  numPad.hidden = false;
+  document.body.classList.add('pad-open');
+  requestAnimationFrame(() => {
+    const r = field.getBoundingClientRect();
+    const limit = numPad.getBoundingClientRect().top - 16;
+    if (r.bottom > limit) window.scrollBy({ top: r.bottom - limit, behavior: 'smooth' });
+    else if (r.top < topInset() + 8) window.scrollBy({ top: r.top - topInset() - 8, behavior: 'smooth' });
+  });
+}
+function closePad() {
+  if (padField) padField.classList.remove('active');
+  padField = null;
+  numPad.hidden = true;
+  document.body.classList.remove('pad-open');
+}
+document.addEventListener('pointerdown', (e) => {
+  if (!padField || numPad.contains(e.target) || e.target.closest('.nf')) return;
+  closePad();
+}, true);
 
 // Tapping anywhere outside a text box closes the iPhone keyboard (no need for the ✓ bar button).
 document.addEventListener('pointerdown', (e) => {

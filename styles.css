@@ -355,3 +355,27 @@ input, select, textarea { font-size: 16px !important; }
 .set .jw.sign { min-width: 28px; height: 38px; font-size: 16px; }
 .set .sn { width: 16px; }
 .set .x { flex: none; width: 28px; height: 38px; }
+
+/* Add exercise: sits under the last exercise of today. */
+.add-ex { display: block; margin: 2px 0 6px 2px; padding: 8px 12px; border-radius: 10px; font-size: 14px; font-weight: 700; color: var(--ink); background: var(--accent-soft); }
+.day:not(.has) .add-ex { margin-top: 0; }
+
+/* Number pad */
+.nf { display: inline-flex; align-items: center; justify-content: center; min-width: 2.4ch; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--fg); }
+.set .tile .nf { height: 36px; padding: 0 5px; font-size: 18px; }
+.tile:has(.nf.active) { border-color: var(--accent); background: var(--accent-soft); }
+.nf:empty::after { content: '–'; color: var(--muted); opacity: 0.5; font-weight: 600; }
+.numpad {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.2);
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+}
+.np-top { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 8px; }
+.np-label { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.np-done { font-weight: 700; color: var(--ink); padding: 4px 6px; }
+.np-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.np-key { height: 50px; border-radius: 12px; background: var(--bg2); font-size: 22px; font-weight: 700; color: var(--fg); }
+.np-key:active { background: var(--accent-soft); }
+.np-next { grid-column: span 3; background: var(--accent); color: #fff; font-size: 17px; }
+body.pad-open { padding-bottom: 320px; }
+.daytype.rest { font-style: italic; font-weight: 500; }
