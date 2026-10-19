@@ -803,7 +803,13 @@ function renderToday() {
   const last = lastDayBar(key);
   root.classList.toggle('with-last', !!last);
   root.replaceChildren(renderDay(key, true), last || '');
+  renderTodayType();
   sizeTodayBox();
+}
+function renderTodayType() {
+  const slot = document.getElementById('today-type');
+  const dt = document.querySelector('#today .dhead .daytype');
+  if (slot && dt) slot.replaceChildren(dt);
 }
 
 function scrollToKey(key, smooth, alignEnd) {
@@ -1166,28 +1172,29 @@ function openExerciseForm(ex, afterSave) {
     try { image = await shrinkPhoto(f); link.value = ''; drawPreview(); } catch (_) { alert('Could not read that picture.'); }
   });
   drawPreview();
-  // Icon: keep the current one, or build one from a pose + equipment (auto-guessed from the name until you pick).
+  // Icon: optional, built from a pose + equipment only if you open the builder.
   let iconSpec = ex && ex.iconSpec ? { ...ex.iconSpec } : null;
-  let picked = !!iconSpec || !!(ex && ex.icon);
   const glyph = h('div', { class: 'icon-prev' });
   const poseRow = h('div', { class: 'ichips' });
   const equipRow = h('div', { class: 'ichips' });
   const currentIcon = () => (iconSpec ? IconKit.url(iconSpec.pose, iconSpec.equip) : ex && ex.icon) || '';
   const drawIcon = () => {
-    if (!picked) iconSpec = IconKit.guess(name.value);
     const spec = iconSpec || IconKit.guess(name.value);
     glyph.replaceChildren(icon({ name: name.value, icon: currentIcon() }, 'lg'));
     const chips = (row, table, keyName) => row.replaceChildren(...Object.entries(table).map(([k, v]) =>
-      h('button', { class: `pill${iconSpec && spec[keyName] === k ? ' on' : ''}`, onclick: () => { iconSpec = { ...spec, [keyName]: k }; picked = true; drawIcon(); } }, v.label)));
+      h('button', { class: `pill${iconSpec && spec[keyName] === k ? ' on' : ''}`, onclick: () => { iconSpec = { ...spec, [keyName]: k }; drawIcon(); } }, v.label)));
     chips(poseRow, IconKit.POSES, 'pose');
     chips(equipRow, IconKit.EQUIP, 'equip');
   };
   drawIcon();
+  const builderBody = h('div', { class: 'icon-builder', hidden: !iconSpec }, glyph,
+    h('div', { class: 'grow' }, h('div', { class: 'ilabel' }, 'Pose'), poseRow, h('div', { class: 'ilabel' }, 'Equipment'), equipRow));
+  const builderBtn = h('button', { class: 'pill build-icon', hidden: !!iconSpec, onclick: () => { builderBody.hidden = false; builderBtn.hidden = true; } }, 'Build an icon');
+  const builder = h('div', { class: 'field' }, builderBtn, builderBody);
   const saveBtn = h('button', { class: 'btn primary', disabled: !(ex && ex.name.trim()) }, 'Save');
-  name.addEventListener('input', () => { saveBtn.disabled = !name.value.trim(); if (!picked) drawIcon(); });
+  name.addEventListener('input', () => { saveBtn.disabled = !name.value.trim(); drawIcon(); });
   saveBtn.addEventListener('click', () => {
     const data = { name: name.value.trim(), spec, image: isImage(image) ? image : '' };
-    if (!picked) iconSpec = IconKit.guess(data.name);
     if (iconSpec) { data.icon = IconKit.url(iconSpec.pose, iconSpec.equip); data.iconSpec = iconSpec; }
     if (!data.name) return;
     if (ex) { Object.assign(ex, data); delete ex.details; } else state.exercises.push({ id: uid(), ...data });
@@ -1199,13 +1206,12 @@ function openExerciseForm(ex, afterSave) {
     field('Name', name),
     fieldDiv('What you track', blockEditor(spec)),
     ex && ex.details ? h('p', { class: 'hint' }, `Old details: ${ex.details}`) : null,
-    fieldDiv('Icon', h('div', { class: 'icon-builder' }, glyph,
-      h('div', { class: 'grow' }, h('div', { class: 'ilabel' }, 'Pose'), poseRow, h('div', { class: 'ilabel' }, 'Equipment'), equipRow))),
-    fieldDiv('Picture (optional, replaces the icon)', h('div', {},
+    fieldDiv('Picture (optional)', h('div', {},
       h('label', { class: 'pill' }, 'Choose photo', photo),
       h('div', { class: 'or' }, 'or paste a link'),
       link)),
     preview,
+    builder,
     saveBtn,
     ex ? h('button', { class: 'btn danger', onclick: () => {
       if (!confirm(`Delete “${ex.name}”? Days you already logged keep it.`)) return;
@@ -1758,3 +1764,6 @@ if ('serviceWorker' in navigator) {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
   }).catch(() => {});
 }
+
+const refreshDayBase = refreshDay;
+refreshDay = (...args) => { const r = refreshDayBase(...args); renderTodayType(); return r; };

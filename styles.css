@@ -512,3 +512,19 @@ html, body { min-height: 100%; }
 .lastday .wtype { font-size: 17px; }
 .lastday .wlist { font-size: 14.5px; }
 .lastday .wbar { padding-top: 13px; padding-bottom: 13px; }
+
+/* Today: day type up in the top bar, date centered */
+#view-today .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.today-type { min-width: 0; max-width: 55%; display: flex; justify-content: flex-end; }
+.today-type .daytype { flex: none; max-width: 100%; font-size: 18px; justify-content: flex-end; }
+#today .daybox .dhead { justify-content: center; }
+#today .daybox .ddate { text-align: center; }
+/* Day menu: separate see-through pills */
+.daypop { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; border: none; box-shadow: none; padding: 2px; display: flex; flex-direction: column; gap: 6px; }
+.dprow, .dprow + .dprow { flex: none; border-radius: 999px; padding: 9px 18px;
+  background: color-mix(in srgb, var(--card) 58%, transparent); backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22); }
+.daypop { max-height: 272px; }
+.dprow.on::after { margin-left: auto; }
+.build-icon { margin-top: 4px; }
+.icon-builder[hidden], .build-icon[hidden] { display: none; }
