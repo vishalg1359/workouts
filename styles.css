@@ -402,3 +402,6 @@ body.pad-open { padding-bottom: 320px; }
 .hrow.on { background: var(--accent-soft); border-radius: 10px; }
 .hdate { font-weight: 700; margin-bottom: 2px; }
 .hday { color: var(--muted); font-weight: 600; }
+
+/* Search stays pinned at the top of a sheet while results scroll under it. */
+.sheet-body > .search { position: sticky; top: -14px; z-index: 2; margin: -14px -16px 8px; width: calc(100% + 32px); box-sizing: border-box; border-radius: 0; border-width: 0 0 1px; background: var(--card); padding: 12px 16px; }

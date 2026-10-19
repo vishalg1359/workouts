@@ -699,6 +699,21 @@ function sheetGestures(box, body, back, close) {
   });
 }
 sheetGestures(sheet, sheetBody, backdrop, closeSheet);
+
+// iPhone's keyboard covers fixed bottom sheets; lift open sheets above it and shrink them to the visible area.
+function fitSheetsToKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+  document.querySelectorAll('.sheet').forEach((s) => {
+    s.style.bottom = kb > 60 ? `${kb}px` : '';
+    s.style.maxHeight = kb > 60 ? `${Math.round(vv.height - 10)}px` : '';
+  });
+}
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', fitSheetsToKeyboard);
+  visualViewport.addEventListener('scroll', fitSheetsToKeyboard);
+}
 backdrop.addEventListener('click', closeSheet);
 document.getElementById('sheet-close').addEventListener('click', closeSheet);
 
