@@ -99,7 +99,7 @@ function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); markDi
 
 // GitHub backup settings live in their own key so exports never contain the access key.
 const CLOUD_KEY = 'workouts.cloud';
-const cloud = Object.assign({ token: '', repo: 'vishalg1359/workouts-data', path: 'workouts.json', sha: '', lastAt: 0, dirty: false, error: '' },
+const cloud = Object.assign({ token: '', repo: '', path: 'workouts.json', sha: '', lastAt: 0, dirty: false, error: '' },
   (() => { try { return JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; } catch (_) { return {}; } })());
 const saveCloud = () => localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud));
 let backupTimer = null;
@@ -1039,19 +1039,6 @@ function renderProfile() {
 }
 
 // ---------- backup ----------
-document.getElementById('export-btn').addEventListener('click', async () => {
-  const json = JSON.stringify(state, null, 1);
-  const fileName = `workouts-backup-${todayKey()}.json`;
-  const file = new File([json], fileName, { type: 'application/json' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: fileName }); return; } catch (e) { if (e.name === 'AbortError') return; }
-  }
-  const a = h('a', { href: URL.createObjectURL(file), download: fileName });
-  document.body.append(a);
-  a.click();
-  a.remove();
-});
-
 const isBackup = (data) => data && typeof data.days === 'object' && Array.isArray(data.exercises);
 function replaceState(data) {
   state = normalize(data);
@@ -1063,21 +1050,6 @@ function replaceState(data) {
   renderProfile();
   requestAnimationFrame(() => scrollToToday(false));
 }
-document.getElementById('import-input').addEventListener('change', async (e) => {
-  const f = e.target.files[0];
-  e.target.value = '';
-  if (!f) return;
-  try {
-    const data = JSON.parse(await f.text());
-    if (!isBackup(data)) throw new Error('bad file');
-    if (!confirm('Replace everything in the app with this backup?')) return;
-    replaceState(data);
-    alert('Backup restored.');
-  } catch (_) {
-    alert('That file is not a valid backup.');
-  }
-});
-
 // ---------- GitHub backup: one JSON file in a private repo; GitHub keeps every version ----------
 function gh(path, opts = {}) {
   return fetch(`https://api.github.com/repos/${cloud.repo}/${path}`, {
