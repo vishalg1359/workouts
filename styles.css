@@ -336,3 +336,9 @@ input, select, textarea { font-size: 16px !important; }
 .daytype.empty { color: var(--muted); font-weight: 600; opacity: 0.75; }
 .day.tinted .daytype { color: var(--day); }
 .field .daytype { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); justify-content: space-between; }
+
+.cstatus { margin: 0 0 4px; font-weight: 700; }
+.cstatus.err { color: #dc2626; font-weight: 600; }
+#cloud .btn-row { margin-bottom: 6px; }
+.cdisc { display: block; margin: 8px 0 14px; color: var(--muted); font-size: 14px; }
+#cloud + .hint { border-top: 1px solid var(--line); padding-top: 12px; }

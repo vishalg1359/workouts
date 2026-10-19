@@ -94,7 +94,24 @@ function seedV1() {
   for (const u of ['level', 'mph', '% incline']) if (!state.units.includes(u)) state.units.push(u);
   for (const j of ['in', '−']) if (!state.joins.includes(j)) state.joins.push(j);
   state.seed = 1;
-}function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+}
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); markDirty(); }
+
+// GitHub backup settings live in their own key so exports never contain the access key.
+const CLOUD_KEY = 'workouts.cloud';
+const cloud = Object.assign({ token: '', repo: 'vishalg1359/workouts-data', path: 'workouts.json', sha: '', lastAt: 0, dirty: false, error: '' },
+  (() => { try { return JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; } catch (_) { return {}; } })());
+const saveCloud = () => localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud));
+let backupTimer = null;
+let backupBusy = false;
+let editSeq = 0;
+function markDirty() {
+  editSeq++;
+  if (!cloud.token) return;
+  if (!cloud.dirty) { cloud.dirty = true; saveCloud(); }
+  clearTimeout(backupTimer);
+  backupTimer = setTimeout(() => backupNow(), 60000);
+}
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -1035,26 +1052,175 @@ document.getElementById('export-btn').addEventListener('click', async () => {
   a.remove();
 });
 
+const isBackup = (data) => data && typeof data.days === 'object' && Array.isArray(data.exercises);
+function replaceState(data) {
+  state = normalize(data);
+  save();
+  applyTheme();
+  initRange();
+  renderFeed();
+  renderExercises();
+  renderProfile();
+  requestAnimationFrame(() => scrollToToday(false));
+}
 document.getElementById('import-input').addEventListener('change', async (e) => {
   const f = e.target.files[0];
   e.target.value = '';
   if (!f) return;
   try {
     const data = JSON.parse(await f.text());
-    if (!data || typeof data.days !== 'object' || !Array.isArray(data.exercises)) throw new Error('bad file');
+    if (!isBackup(data)) throw new Error('bad file');
     if (!confirm('Replace everything in the app with this backup?')) return;
-    state = normalize(data);
-    save();
-    applyTheme();
-    initRange();
-    renderFeed();
-    renderExercises();
-    renderProfile();
+    replaceState(data);
     alert('Backup restored.');
   } catch (_) {
     alert('That file is not a valid backup.');
   }
 });
+
+// ---------- GitHub backup: one JSON file in a private repo; GitHub keeps every version ----------
+function gh(path, opts = {}) {
+  return fetch(`https://api.github.com/repos/${cloud.repo}/${path}`, {
+    cache: 'no-store', ...opts,
+    headers: { Authorization: `Bearer ${cloud.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.headers || {}) },
+  });
+}
+function toBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function ghError(status) {
+  if (status === 401) return 'GitHub did not accept the key.';
+  if (status === 403 || status === 404) return 'The key cannot reach that repo. Check the repo name and that the key has Contents: Read and write.';
+  return `GitHub error ${status}.`;
+}
+async function fetchSha() {
+  const r = await gh(`contents/${cloud.path}`);
+  if (r.status === 404) return '';
+  if (!r.ok) throw new Error(ghError(r.status));
+  return (await r.json()).sha || '';
+}
+async function backupNow(force) {
+  clearTimeout(backupTimer);
+  if (!cloud.token || backupBusy || (!cloud.dirty && !force) || !navigator.onLine) return false;
+  backupBusy = true;
+  const seq = editSeq;
+  try {
+    const content = toBase64(JSON.stringify(state));
+    const put = () => gh(`contents/${cloud.path}`, { method: 'PUT',
+      body: JSON.stringify({ message: `Backup ${new Date().toISOString()}`, content, ...(cloud.sha ? { sha: cloud.sha } : {}) }) });
+    let r = await put();
+    if (r.status === 409 || r.status === 422) { cloud.sha = await fetchSha(); r = await put(); }
+    if (!r.ok) throw new Error(ghError(r.status));
+    cloud.sha = (await r.json()).content.sha;
+    cloud.lastAt = Date.now();
+    cloud.error = '';
+    cloud.dirty = editSeq !== seq;
+    if (cloud.dirty) backupTimer = setTimeout(() => backupNow(), 60000);
+    return true;
+  } catch (e) {
+    cloud.error = e.message || 'Backup failed.';
+    return false;
+  } finally {
+    backupBusy = false;
+    saveCloud();
+    renderCloud();
+  }
+}
+async function fetchCloudData() {
+  const r = await gh(`contents/${cloud.path}`, { headers: { Accept: 'application/vnd.github.raw+json' } });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(ghError(r.status));
+  const data = await r.json();
+  if (!isBackup(data)) throw new Error('The file on GitHub is not a valid backup.');
+  return data;
+}
+async function restoreFromCloud(ask = true) {
+  try {
+    const data = await fetchCloudData();
+    if (!data) { alert('There is no backup on GitHub yet.'); return; }
+    if (ask && !confirm('Replace everything on this phone with the GitHub backup?')) return;
+    replaceState(data);
+    cloud.sha = await fetchSha();
+    cloud.dirty = false;
+    cloud.error = '';
+    cloud.lastAt = Date.now();
+    clearTimeout(backupTimer);
+    saveCloud();
+    renderCloud();
+    alert('Restored from GitHub.');
+  } catch (e) { alert(e.message); }
+}
+async function connectCloud(token, repo) {
+  cloud.token = token;
+  cloud.repo = repo;
+  try {
+    const info = await gh('');
+    if (!info.ok) throw new Error(ghError(info.status));
+    const meta = await info.json();
+    if (!meta.private && !confirm('That repo is public, so anyone could read your backups. Connect anyway?')) throw new Error('');
+    cloud.sha = await fetchSha();
+    saveCloud();
+    if (cloud.sha && confirm('A backup is already on GitHub. Restore it to this phone now?\n\nCancel keeps this phone\'s data and backs it up over the old one (older versions stay in GitHub history).')) {
+      await restoreFromCloud(false);
+    } else {
+      cloud.dirty = true;
+      await backupNow(true);
+    }
+  } catch (e) {
+    cloud.token = '';
+    saveCloud();
+    if (e.message) alert(e.message);
+  }
+  renderCloud();
+}
+function ago(t) {
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  if (m < 1440) return `${Math.round(m / 60)} h ago`;
+  return fmt(new Date(t), { month: 'short', day: 'numeric' });
+}
+function renderCloud() {
+  const root = document.getElementById('cloud');
+  if (!root) return;
+  if (!cloud.token) {
+    const repo = h('input', { value: cloud.repo, 'aria-label': 'Repo', ...NO_CAPS });
+    const key = h('input', { type: 'password', 'aria-label': 'GitHub key', autocomplete: 'off', ...NO_CAPS });
+    const go = h('button', { class: 'btn primary', onclick: async () => {
+      if (!key.value.trim() || !repo.value.trim()) return;
+      go.disabled = true;
+      go.textContent = 'Connecting…';
+      await connectCloud(key.value.trim(), repo.value.trim().replace(/^https:\/\/github\.com\//, '').replace(/\/$/, ''));
+    } }, 'Connect');
+    root.replaceChildren(
+      h('p', { class: 'hint' }, 'Back up automatically to your private GitHub repo. The key is stored only on this phone.'),
+      field('Repo', repo), field('GitHub key', key), go);
+    return;
+  }
+  const status = cloud.error ? cloud.error
+    : backupBusy ? 'Backing up…'
+    : cloud.lastAt ? `Backed up ${ago(cloud.lastAt)}${cloud.dirty ? ' · changes waiting' : ''}` : 'Not backed up yet';
+  root.replaceChildren(
+    h('p', { class: `cstatus${cloud.error ? ' err' : ''}` }, status),
+    h('p', { class: 'hint' }, `To ${cloud.repo}`),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn', onclick: () => backupNow(true) }, 'Back up now'),
+      h('button', { class: 'btn', onclick: () => restoreFromCloud() }, 'Restore')),
+    h('button', { class: 'link cdisc', onclick: () => {
+      if (!confirm('Stop backing up to GitHub on this phone?')) return;
+      cloud.token = '';
+      cloud.sha = '';
+      saveCloud();
+      renderCloud();
+    } }, 'Disconnect'));
+}
+document.addEventListener('visibilitychange', () => { if (cloud.dirty) backupNow(); });
+window.addEventListener('online', () => { if (cloud.dirty) backupNow(); });
+setTimeout(() => { if (cloud.dirty) backupNow(); }, 3000);
+renderCloud();
 
 // ---------- tabs ----------
 let logScroll = null;
@@ -1065,6 +1231,7 @@ function showView(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === name));
   if (name === 'log' && !wasLog && logScroll != null) window.scrollTo(0, logScroll);
   else if (name !== 'log') window.scrollTo(0, 0);
+  if (name === 'profile') renderCloud();
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showView(t.dataset.view)));
 
