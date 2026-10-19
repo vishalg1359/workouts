@@ -328,3 +328,11 @@ input, select, textarea { font-size: 16px !important; }
 .bconn { display: flex; justify-content: center; margin: 4px 0; }
 .bconn select.join { height: 30px; min-width: 44px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); font-weight: 800; padding: 0 12px; }
 .blocks .btn.small { margin-top: 10px; }
+
+/* Day type: a dropdown button, not a text box. */
+.daytype { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; text-align: left; color: var(--ink); font-size: 16px; font-weight: 700; }
+.daytype .dtname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.daytype .caret { flex: none; font-size: 11px; opacity: 0.7; }
+.daytype.empty { color: var(--muted); font-weight: 600; opacity: 0.75; }
+.day.tinted .daytype { color: var(--day); }
+.field .daytype { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); justify-content: space-between; }

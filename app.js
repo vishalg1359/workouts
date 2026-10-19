@@ -69,7 +69,17 @@ let state = load();
 
 // Adds the starter library once. Existing exercises with the same name keep their data and just gain the icon.
 function seedStarters() {
-  if (state.seed >= 1) return;
+  if (state.seed < 1) seedV1();
+  if (state.seed < 2) {
+    const isBench = (o) => o.name.trim().toLowerCase() === 'bench press';
+    const ids = new Set();
+    for (const ex of state.exercises) if (isBench(ex)) { ex.image = ''; ex.icon = 'icons/bench.svg'; ids.add(ex.id); }
+    for (const d of Object.values(state.days)) for (const e of d.entries) if (ids.has(e.exerciseId) || isBench(e)) { e.image = ''; e.icon = 'icons/bench.svg'; }
+    state.seed = 2;
+    save();
+  }
+}
+function seedV1() {
   const w = weightUnit();
   const byName = new Map(state.exercises.map((e) => [e.name.trim().toLowerCase(), e]));
   for (const [name, file, shape] of STARTERS) {
@@ -84,7 +94,6 @@ function seedStarters() {
   for (const u of ['level', 'mph', '% incline']) if (!state.units.includes(u)) state.units.push(u);
   for (const j of ['in', '−']) if (!state.joins.includes(j)) state.joins.push(j);
   state.seed = 1;
-  save();
 }function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
@@ -333,13 +342,6 @@ function monthHeader(d) {
     h('span', { class: 'myear' }, d.getFullYear()));
 }
 
-function nameField(key, day) {
-  const input = h('input', { class: 'dayname', value: day ? day.name : '', enterkeyhint: 'done', 'aria-label': 'Day name', ...NO_CAPS });
-  input.addEventListener('input', () => { ensureDay(key).name = input.value; save(); });
-  input.addEventListener('blur', () => { cleanupDay(key); save(); });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
-  return input;
-}
 
 const isDone = (key, entry) => (entry.done == null ? key < todayKey() : entry.done);
 
@@ -481,8 +483,7 @@ function renderDay(key) {
     : h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
         isToday ? h('span', { class: 'tpill' }, 'Today') : null,
-        nameField(key, day),
-        h('button', { class: 'chip', 'aria-label': 'Pick a day name', onclick: () => openPresetPicker(key) }, '▾'),
+        dayTypeButton(key, day),
         h('button', { class: 'chip add', 'aria-label': 'Add exercise', onclick: () => openExercisePicker(key) }, '+'));
   return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${locked && !past ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}`,
     style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: locked ? () => openDaySheet(key) : null },
@@ -524,14 +525,17 @@ function keepAnchor(fn) {
   if (el) window.scrollBy(0, el.getBoundingClientRect().top - offset);
 }
 
+function dayTypeButton(key, day) {
+  const named = day && day.name.trim();
+  return h('button', { class: `daytype${named ? '' : ' empty'}`, 'aria-label': 'Pick a day type',
+    onclick: (e) => { e.stopPropagation(); openPresetPicker(key); } },
+    h('span', { class: 'dtname' }, named ? day.name : 'Day type'), h('span', { class: 'caret' }, '▾'));
+}
 function openDaySheet(key) {
   const day = getDay(key);
   const entries = day ? day.entries : [];
-  const name = nameField(key, day);
-  name.addEventListener('blur', () => refreshDay(key));
   openSheet(fmt(dateOf(key), { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
-    fieldDiv('Day name', h('div', { class: 'day-name-row' }, name,
-      h('button', { class: 'chip', 'aria-label': 'Pick a day name', onclick: () => openPresetPicker(key) }, '▾'))),
+    fieldDiv('Day type', dayTypeButton(key, day)),
     entries.length ? h('div', {}, entries.map((e) => h('div', { class: 'choice', onclick: () => openEntryEditor(key, e.id) },
       icon(e), h('div', { class: 'grow' }, h('div', { class: 'cname' }, e.name),
         e.sets.map(doneSummary).filter(Boolean).map((t) => h('div', { class: 'set-text' }, t)))))) : h('p', { class: 'hint' }, 'Nothing logged.'),
