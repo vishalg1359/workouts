@@ -619,13 +619,14 @@ function lastTimeLine(key, entry) {
 }
 function lastDayBar(key) {
   const name = ((getDay(key) || {}).name || '').trim();
-  const k = pastDaysDesc(key).find((x) => state.days[x].entries.length && (!name || state.days[x].name.trim().toLowerCase() === name.toLowerCase()));
+  if (!name || /\brest\b/i.test(name)) return null;
+  const k = pastDaysDesc(key).find((x) => state.days[x].entries.length && state.days[x].name.trim().toLowerCase() === name.toLowerCase());
   if (!k) return null;
   const d = state.days[k];
   const color = dayColor(d);
   return h('div', { class: `lastday${lastDayOpen ? ' open' : ''}`, style: color ? `--day:${color}` : null },
     h('button', { class: 'wbar', onclick: () => { lastDayOpen = !lastDayOpen; renderToday(); } },
-      h('span', { class: 'wtype' }, name ? `Last ${d.name}` : `Last workout${d.name.trim() ? ` · ${d.name}` : ''}`),
+      h('span', { class: 'wtype' }, `Last ${d.name}`),
       h('span', { class: 'wlist' }, fmt(dateOf(k), { weekday: 'short', month: 'short', day: 'numeric' })),
       h('span', { class: 'wcaret' }, lastDayOpen ? '▴' : '▾')),
     lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null);
@@ -634,7 +635,9 @@ function renderToday() {
   const root = document.getElementById('today');
   if (!root) return;
   const key = todayKey();
-  root.replaceChildren(renderDay(key, true), lastDayBar(key) || '');
+  const last = lastDayBar(key);
+  root.classList.toggle('with-last', !!last);
+  root.replaceChildren(renderDay(key, true), last || '');
 }
 
 function scrollToKey(key, smooth, alignEnd) {
