@@ -438,3 +438,14 @@ html, body { min-height: 100%; }
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--day, var(--accent)) 45%, transparent); }
 .lastday .wbar { width: 100%; margin: 0; border-radius: 0; background: color-mix(in srgb, var(--day, var(--accent)) 16%, var(--card)); }
 .lastday .exs { padding: 6px 14px 10px; }
+
+/* Last workout sits at the bottom of the screen; opening it lengthens the page downward. */
+#view-today.active { display: flex; flex-direction: column; }
+#today { flex: 1; display: flex; flex-direction: column; }
+#today .lastday { margin-top: auto; }
+.day-title { font-size: 28px; font-weight: 800; color: var(--fg); padding: 0; letter-spacing: -0.02em; }
+.day-title .caret { font-size: 16px; color: var(--muted); }
+#day-next:disabled { opacity: 0.3; }
+.dp-date { font-weight: 700; }
+.dp-sub { font-size: 13px; color: var(--muted); }
+.choice.on { background: var(--accent-soft); }

@@ -599,13 +599,13 @@ function openDaySheet(key) {
     h('button', { class: 'btn primary', onclick: () => openExercisePicker(key) }, '+ Add exercise'));
 }
 // After editing something on a past day, go back to that day's sheet instead of closing.
-const afterDayEdit = (key) => { save(); refreshDay(key); if (isLocked(key) || logActive()) openDaySheet(key); else closeSheet(); };
+const afterDayEdit = (key) => { save(); refreshDay(key); if (todayTabActive() && key === dayViewKey()) closeSheet(); else openDaySheet(key); };
 function refreshDay(key) {
   keepAnchor(() => {
     const old = feedEl.querySelector(`[data-key="${key}"]`);
     if (old) old.replaceWith(renderDay(key));
   });
-  if (key === todayKey()) renderToday();
+  if (key === dayViewKey()) renderToday();
   if (padField && !padField.isConnected) closePad();
 }
 
@@ -647,10 +647,57 @@ function lastDayBar(key) {
       h('span', { class: 'wcaret' }, lastDayOpen ? '▴' : '▾')),
     lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null);
 }
+// The Today tab shows one day: today by default, or an earlier day picked from the title (never the future).
+let viewDay = null;
+const dayViewKey = () => (viewDay && viewDay < todayKey() ? viewDay : todayKey());
+const todayTabActive = () => document.getElementById('view-today').classList.contains('active');
+function setViewDay(key) {
+  viewDay = key >= todayKey() ? null : key;
+  lastDayOpen = false;
+  closePad();
+  renderToday();
+  window.scrollTo(0, 0);
+}
+function shiftViewDay(n) {
+  const d = dateOf(dayViewKey());
+  d.setDate(d.getDate() + n);
+  setViewDay(keyOf(d));
+}
+function dayTitleText(key) {
+  const t = todayKey();
+  if (key === t) return 'Today';
+  const y = dateOf(t); y.setDate(y.getDate() - 1);
+  if (key === keyOf(y)) return 'Yesterday';
+  return fmt(dateOf(key), { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function openDayPicker() {
+  const list = h('div', {});
+  let shown = 0;
+  const more = h('button', { class: 'btn', onclick: () => addDays(60) }, 'Show older days');
+  const addDays = (n) => {
+    const d = dateOf(todayKey());
+    d.setDate(d.getDate() - shown);
+    for (let i = 0; i < n; i++, shown++, d.setDate(d.getDate() - 1)) {
+      const k = keyOf(d);
+      const day = getDay(k);
+      const color = day && !isRestDay(k, day) ? dayColor(day) : '';
+      list.append(h('div', { class: `choice${k === dayViewKey() ? ' on' : ''}`, style: color ? `--day:${color}` : null, onclick: () => { closeSheet(); setViewDay(k); } },
+        h('div', { class: 'grow' }, h('div', { class: 'dp-date' }, dayTitleText(k) === 'Today' || dayTitleText(k) === 'Yesterday' ? `${dayTitleText(k)} · ${fmt(d, { month: 'short', day: 'numeric' })}` : fmt(d, { weekday: 'short', month: 'short', day: 'numeric', year: d.getFullYear() === today().getFullYear() ? undefined : 'numeric' })),
+          h('div', { class: 'dp-sub' }, day && day.entries.length ? `${day.name.trim() || 'Workout'} · ${day.entries.length} exercise${day.entries.length > 1 ? 's' : ''}` : 'rest day'))));
+    }
+  };
+  addDays(60);
+  openSheet('Pick a day', list, more);
+}
+document.getElementById('day-title').addEventListener('click', openDayPicker);
+document.getElementById('day-prev').addEventListener('click', () => shiftViewDay(-1));
+document.getElementById('day-next').addEventListener('click', () => shiftViewDay(1));
 function renderToday() {
   const root = document.getElementById('today');
   if (!root) return;
-  const key = todayKey();
+  const key = dayViewKey();
+  document.getElementById('day-title').replaceChildren(dayTitleText(key), h('span', { class: 'caret' }, ' ▾'));
+  document.getElementById('day-next').disabled = key === todayKey();
   const last = lastDayBar(key);
   root.classList.toggle('with-last', !!last);
   root.replaceChildren(renderDay(key, true), last || '');
@@ -917,8 +964,10 @@ function addToDay(key, ex) {
   if (ex.details) entry.details = ex.details;
   ensureDay(key).entries.push(entry);
   save();
-  const inline = !isLocked(key) && document.getElementById('view-today').classList.contains('active');
+  const inline = todayTabActive() && key === dayViewKey();
   if (!inline) { entry.done = true; refreshDay(key); openEntryEditor(key, entry.id); return; }
+  entry.done = false;
+  save();
   closeSheet();
   refreshDay(key);
   const blank = document.querySelector('#today .ex-wrap:last-child .nf');

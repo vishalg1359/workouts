@@ -18,7 +18,11 @@
 <main>
   <section id="view-today" class="view active">
     <header class="topbar">
-      <h1>Today</h1>
+      <button id="day-title" class="day-title" aria-label="Pick a day"></button>
+      <div class="topbar-actions">
+        <button id="day-prev" class="pill" aria-label="Previous day">‹</button>
+        <button id="day-next" class="pill" aria-label="Next day">›</button>
+      </div>
     </header>
     <div id="today"></div>
   </section>
