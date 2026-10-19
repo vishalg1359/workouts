@@ -292,7 +292,7 @@ function renderEntry(key, entry) {
         specInline(spec, save),
         entry.sets.length > 1 ? h('button', { class: 'x', 'aria-label': 'Remove set',
           onclick: () => { entry.sets.splice(i, 1); save(); refreshDay(key); } }, '×') : null));
-  return h('div', { class: `ex${done ? ' done' : ''}` }, head,
+  const exEl = h('div', { class: `ex${done ? ' done' : ''}` }, head,
     h('div', { class: 'sets' }, rows,
       !done ? h('div', { class: 'ex-actions' },
         h('button', { class: 'add-set', onclick: () => {
@@ -303,7 +303,86 @@ function renderEntry(key, entry) {
         } }, '+ set'),
         h('button', { class: 'done-btn', onclick: () => { entry.done = true; save(); refreshDay(key); } }, 'Done')) : null),
     entry.details ? h('div', { class: 'edetails' }, entry.details) : null);
+  const remove = () => {
+    const day = getDay(key);
+    if (!day) return;
+    day.entries = day.entries.filter((e) => e.id !== entry.id);
+    cleanupDay(key);
+    save();
+    refreshDay(key);
+  };
+  const wrap = h('div', { class: 'ex-wrap' },
+    h('div', { class: 'ex-editbg', 'aria-hidden': 'true' }, 'Edit'),
+    h('button', { class: 'ex-del', onclick: remove }, 'Delete'),
+    exEl);
+  swipeable(wrap, exEl, () => openEntryEditor(key, entry.id));
+  return wrap;
 }
+
+// Swipe left reveals Delete; swipe right opens the editor.
+let openSwipe = null;
+function closeOpenSwipe() {
+  if (!openSwipe) return;
+  const w = openSwipe;
+  openSwipe = null;
+  w.classList.add('anim');
+  w.lastChild.style.transform = '';
+  setTimeout(() => w.classList.remove('sw-l', 'sw-r', 'anim'), 200);
+}
+function swipeable(wrap, el, onRight) {
+  const OPEN = 84;
+  let x0 = 0, y0 = 0, dx = 0, base = 0, mode = null, id = null;
+  const swallowClick = () => {
+    const stop = (c) => { c.stopPropagation(); c.preventDefault(); };
+    el.addEventListener('click', stop, { capture: true, once: true });
+    setTimeout(() => el.removeEventListener('click', stop, { capture: true }), 350);
+  };
+  const set = (x) => {
+    el.style.transform = x ? `translateX(${x}px)` : '';
+    wrap.classList.toggle('sw-l', x < 0);
+    wrap.classList.toggle('sw-r', x > 0);
+  };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    if (openSwipe && openSwipe !== wrap) closeOpenSwipe();
+    x0 = e.clientX; y0 = e.clientY; dx = 0; mode = null; id = e.pointerId;
+    base = openSwipe === wrap ? -OPEN : 0;
+    wrap.classList.remove('anim');
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== id) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!mode) {
+      if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+      mode = Math.abs(mx) > Math.abs(my) ? 'h' : 'v';
+      if (mode === 'h') { try { el.setPointerCapture(id); } catch (_) {} if (document.activeElement && el.contains(document.activeElement)) document.activeElement.blur(); }
+    }
+    if (mode !== 'h') return;
+    e.preventDefault();
+    dx = mx;
+    set(Math.max(-OPEN - 30, Math.min(140, base + dx)));
+  });
+  const end = (e) => {
+    if (e.pointerId !== id) return;
+    id = null;
+    if (!mode && base) { closeOpenSwipe(); swallowClick(); return; }
+    if (mode !== 'h') return;
+    const x = base + dx;
+    wrap.classList.add('anim');
+    if (x < -OPEN / 2) { set(-OPEN); openSwipe = wrap; }
+    else {
+      set(0);
+      if (openSwipe === wrap) openSwipe = null;
+      if (x > 80) setTimeout(onRight, 120);
+      setTimeout(() => wrap.classList.remove('sw-l', 'sw-r'), 200);
+    }
+    swallowClick();
+    setTimeout(() => wrap.classList.remove('anim'), 220);
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', (e) => { if (e.pointerId === id) { id = null; if (mode === 'h') { set(base); } } });
+}
+document.addEventListener('pointerdown', (e) => { if (openSwipe && !openSwipe.contains(e.target)) closeOpenSwipe(); }, true);
 
 function renderDay(key) {
   const date = dateOf(key);
@@ -523,7 +602,7 @@ function addToDay(key, ex) {
   save();
   closeSheet();
   refreshDay(key);
-  const blank = feedEl.querySelector(`[data-key="${key}"] .ex:last-child .val`);
+  const blank = feedEl.querySelector(`[data-key="${key}"] .ex-wrap:last-child .val`);
   if (blank && !blank.value) blank.focus({ preventScroll: true });
 }
 

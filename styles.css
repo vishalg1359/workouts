@@ -26,6 +26,7 @@
 [hidden] { display: none !important; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); }
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 body {
   font: 16px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   padding-bottom: calc(72px + env(safe-area-inset-bottom));
@@ -100,7 +101,18 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 
 .exs { padding: 0 0 4px 2px; }
 .ex { padding: 6px 0; }
-.ex + .ex { border-top: 1px solid var(--line); }
+.ex-wrap { position: relative; overflow: hidden; }
+.ex-wrap + .ex-wrap { border-top: 1px solid var(--line); }
+.ex-wrap > .ex { position: relative; z-index: 1; touch-action: pan-y; }
+.ex-wrap.anim > .ex { transition: transform 0.2s ease; }
+.ex-del, .ex-editbg {
+  position: absolute; top: 0; bottom: 0; display: none; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; color: #fff;
+}
+.ex-del { right: 0; width: 84px; background: #dc2626; }
+.ex-editbg { left: 0; width: 100%; justify-content: flex-start; padding-left: 18px; background: var(--accent); box-sizing: border-box; }
+.ex-wrap.sw-l .ex-del, .ex-wrap.sw-r .ex-editbg { display: flex; }
+.ex-wrap.sw-l > .ex, .ex-wrap.sw-r > .ex { background: var(--bg); }
 .ex-head { display: flex; align-items: center; gap: 10px; }
 .ex .ename { flex: 1; min-width: 0; text-align: left; font-size: 16px; font-weight: 700; }
 .ex-actions { display: flex; align-items: center; gap: 14px; margin-top: 2px; }
@@ -251,3 +263,6 @@ select.join { background: var(--bg2); color: var(--fg); }
 .cpick { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
 .cpick input { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: none; }
 .pcolor { width: 26px; height: 26px; flex: none; padding: 0; border: 0; border-radius: 50%; background: none; }
+
+/* iOS zooms into any field under 16px; keep every field at 16px. */
+input, select, textarea { font-size: 16px !important; }
