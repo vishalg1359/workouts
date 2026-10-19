@@ -1216,6 +1216,14 @@ document.addEventListener('visibilitychange', () => {
   scrollToToday(false);
 });
 
+// Tapping anywhere outside a text box closes the iPhone keyboard (no need for the ✓ bar button).
+document.addEventListener('pointerdown', (e) => {
+  const a = document.activeElement;
+  if (!a || !/^(INPUT|TEXTAREA)$/.test(a.tagName)) return;
+  if (e.target.closest('input, textarea, select, label')) return;
+  a.blur();
+}, true);
+
 // ---------- start ----------
 seedStarters();
 applyTheme();
