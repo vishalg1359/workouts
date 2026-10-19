@@ -537,3 +537,7 @@ html, body { min-height: 100%; }
 #today .daybox .dhead { display: none; }
 .daypop { scrollbar-width: none; }
 .daypop::-webkit-scrollbar { display: none; }
+
+/* Typed day: today's box in the app highlight color, reaching down to the last-workout bar */
+#today.typed .daybox { background: color-mix(in srgb, var(--accent) 13%, var(--card)); border: 1.5px solid color-mix(in srgb, var(--accent) 40%, transparent); padding: 6px 4px 8px; }
+#today:not(.typed) .daybox { background: none; }

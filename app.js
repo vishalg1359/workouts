@@ -782,10 +782,10 @@ function sizeTodayBox() {
   box.classList.add('daybox');
   box.style.minHeight = '';
   const bar = root.querySelector('.lastday .wbar');
-  if (!bar || !todayTabActive()) return;
+  if (!root.classList.contains('typed') || !todayTabActive()) return;
   const tabTop = document.querySelector('.tabbar').getBoundingClientRect().top;
   const top = box.getBoundingClientRect().top + window.scrollY;
-  const room = tabTop - bar.offsetHeight - 18 - 14 - top;
+  const room = tabTop - (bar ? bar.offsetHeight + 18 : 0) - 14 - top;
   if (room <= 0) return;
   box.style.minHeight = `${room}px`;
   const exs = root.querySelector('.lastday .exs');
@@ -812,6 +812,8 @@ function renderTodayType() {
   const slot = document.getElementById('today-type');
   const dt = document.querySelector('#today .dhead .daytype');
   if (slot && dt) slot.replaceChildren(dt);
+  const cur = slot && slot.querySelector('.daytype');
+  document.getElementById('today').classList.toggle('typed', !!cur && !cur.classList.contains('empty'));
 }
 
 function scrollToKey(key, smooth, alignEnd) {
@@ -1768,4 +1770,4 @@ if ('serviceWorker' in navigator) {
 }
 
 const refreshDayBase = refreshDay;
-refreshDay = (...args) => { const r = refreshDayBase(...args); renderTodayType(); return r; };
+refreshDay = (...args) => { const r = refreshDayBase(...args); renderTodayType(); if (todayTabActive() && !document.body.classList.contains("pad-open")) sizeTodayBox(); return r; };
