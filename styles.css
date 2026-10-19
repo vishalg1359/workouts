@@ -445,3 +445,4 @@ html, body { min-height: 100%; }
 #today.with-last { padding-bottom: 80px; }
 .lastday.open ~ * { display: none; }
 body.pad-open .lastday { display: none; }
+.lastday .wbar { top: auto; bottom: 0; }

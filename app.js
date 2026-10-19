@@ -624,12 +624,13 @@ function lastDayBar(key) {
   if (!k) return null;
   const d = state.days[k];
   const color = dayColor(d);
+  // Exercises sit above the title bar, so opening it grows the box upward while the bar stays at the bottom.
   return h('div', { class: `lastday${lastDayOpen ? ' open' : ''}`, style: color ? `--day:${color}` : null },
+    lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null,
     h('button', { class: 'wbar', onclick: () => { lastDayOpen = !lastDayOpen; renderToday(); } },
       h('span', { class: 'wtype' }, `Last ${d.name}`),
       h('span', { class: 'wlist' }, fmt(dateOf(k), { weekday: 'short', month: 'short', day: 'numeric' })),
-      h('span', { class: 'wcaret' }, lastDayOpen ? '▴' : '▾')),
-    lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null);
+      h('span', { class: 'wcaret' }, lastDayOpen ? '▾' : '▴')));
 }
 function renderToday() {
   const root = document.getElementById('today');
