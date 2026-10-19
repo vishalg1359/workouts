@@ -1052,7 +1052,7 @@ function replaceState(data) {
 }
 // ---------- GitHub backup: one JSON file in a private repo; GitHub keeps every version ----------
 function gh(path, opts = {}) {
-  return fetch(`https://api.github.com/repos/${cloud.repo}/${path}`, {
+  return fetch(`https://api.github.com/repos/${cloud.repo}${path ? `/${path}` : ''}`, {
     cache: 'no-store', ...opts,
     headers: { Authorization: `Bearer ${cloud.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.headers || {}) },
   });
@@ -1144,7 +1144,7 @@ async function connectCloud(token, repo) {
   } catch (e) {
     cloud.token = '';
     saveCloud();
-    if (e.message) alert(e.message);
+    if (e.message) alert(e instanceof TypeError ? 'Could not reach GitHub. Check your connection and the repo name (owner/name).' : e.message);
   }
   renderCloud();
 }
