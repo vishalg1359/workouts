@@ -5,7 +5,9 @@ const DEFAULT_PRESETS = ['Upper Day', 'Lower Day', 'Push Day', 'Pull Day', 'Leg 
 const DEFAULT_PRESET_COLORS = { 'upper day': '#2563eb', 'lower day': '#16a34a', 'push day': '#dc2626', 'pull day': '#7c3aed', 'leg day': '#d97706', 'mobility day': '#0d9488' };
 const DEFAULT_PROFILE = { name: '', birthday: '', units: 'imperial', heightCm: null, weightKg: null, theme: 'auto', accent: '#1e40af', pop: '#f97316' };
 const UNITS = ['sets', 'reps', 'lb', 'kg', 'sec', 'min', 'hr', 'mi', 'km', 'm', 'rounds', 'cal'];
-const JOINS = ['×', 'at', 'for', '@', 'of', '+', '/', ''];
+const JOINS = ['×', 'at', 'for', '@', 'of', '+', '/'];
+const OTHER = '\u0000other';
+const EDIT = '\u0000edit';
 const PAGE_DAYS = 60;
 const NO_CAPS = { autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false' };
 
@@ -24,6 +26,8 @@ function normalize(s) {
     presets: (Array.isArray(s.presets) ? s.presets : DEFAULT_PRESETS.slice()).filter((p) => !/^rest\b/i.test(p)),
     presetColors: s.presetColors && typeof s.presetColors === 'object' ? s.presetColors : { ...DEFAULT_PRESET_COLORS },
     profile: { ...DEFAULT_PROFILE, ...(s.profile || {}) },
+    units: Array.isArray(s.units) ? s.units : UNITS.slice(),
+    joins: Array.isArray(s.joins) ? s.joins.filter(Boolean) : JOINS.slice(),
   };
 }
 function load() {
@@ -97,34 +101,77 @@ function specSummary(spec, blankMark) {
   }).filter(Boolean).join(' ');
 }
 
-function selectBox(cls, options, current, onChange, label) {
-  const opts = options.slice();
+// Unit / joining-word dropdowns backed by editable lists (state.units, state.joins).
+const LISTS = {
+  unit: { key: 'units', defaults: UNITS, title: 'Units', prompt: 'New unit', blank: false },
+  join: { key: 'joins', defaults: JOINS, title: 'Joining words', prompt: 'New joining word', blank: true },
+};
+function fillOptions(sel, kind, current) {
+  const L = LISTS[kind];
+  const opts = state[L.key].slice();
+  if (L.blank) opts.push('');
   if (current && !opts.includes(current)) opts.push(current);
-  const sel = h('select', { class: cls, 'aria-label': label },
-    opts.map((o) => h('option', { value: o }, o === '' ? '—' : o)));
+  sel.replaceChildren(...opts.map((o) => h('option', { value: o }, o === '' ? '—' : o)),
+    h('option', { value: OTHER }, 'other…'), h('option', { value: EDIT }, 'edit list…'));
   sel.value = current;
-  const fit = () => { sel.style.width = `calc(${Math.max(1, (sel.value || "—").length)}ch + 12px)`; };
-  fit();
-  sel.addEventListener('change', () => { onChange(sel.value, sel); fit(); });
-  return sel;
+  sel.style.width = `calc(${Math.max(1, (current || '—').length)}ch + 12px)`;
 }
-
-function unitSelect(block, onChange) {
-  const sel = selectBox('unit', [...UNITS, 'other…'], block.unit, (v, s) => {
-    if (v === 'other…') {
-      const custom = (prompt('Unit name') || '').trim();
-      if (!custom) { s.value = block.unit; return; }
-      block.unit = custom;
-      if (![...s.options].some((o) => o.value === custom)) s.insertBefore(h('option', { value: custom }, custom), s.lastChild);
-      s.value = custom;
-    } else block.unit = v;
+function listSelect(kind, block, onChange, label) {
+  const L = LISTS[kind];
+  const sel = h('select', { class: kind, 'aria-label': label, 'data-kind': kind });
+  sel._block = block;
+  fillOptions(sel, kind, block[kind]);
+  sel.addEventListener('change', () => {
+    const v = sel.value;
+    if (v === EDIT) { fillOptions(sel, kind, block[kind]); openListEditor(kind); return; }
+    if (v === OTHER) {
+      const custom = (prompt(L.prompt) || '').trim();
+      if (!custom) { fillOptions(sel, kind, block[kind]); return; }
+      if (!state[L.key].includes(custom)) { state[L.key].push(custom); save(); }
+      block[kind] = custom;
+    } else block[kind] = v;
+    fillOptions(sel, kind, block[kind]);
     onChange();
-  }, 'Unit');
+  });
   return sel;
 }
+const unitSelect = (block, onChange) => listSelect('unit', block, onChange, 'Unit');
+const joinSelect = (block, onChange) => listSelect('join', block, onChange, 'Joining word');
 
-function joinSelect(block, onChange) {
-  return selectBox('join', JOINS, block.join, (v) => { block.join = v; onChange(); }, 'Joining word');
+function refreshListSelects(kind) {
+  document.querySelectorAll(`select[data-kind="${kind}"]`).forEach((s) => { if (s._block) fillOptions(s, kind, s._block[kind]); });
+}
+
+// Separate small sheet on top of any open sheet, so editing a list never loses a half-filled form.
+function openListEditor(kind) {
+  const L = LISTS[kind];
+  const list = state[L.key];
+  const back = h('div', { class: 'backdrop', style: 'z-index: 40' });
+  const body = h('div', { class: 'sheet-body' });
+  const close = () => { back.remove(); box.remove(); refreshListSelects(kind); };
+  const box = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', style: 'z-index: 41' },
+    h('div', { class: 'sheet-head' }, h('span', { class: 'sheet-spacer' }), h('h3', {}, L.title), h('button', { class: 'link', onclick: close }, 'Done')),
+    body);
+  back.addEventListener('click', close);
+  const rows = h('div', {});
+  const draw = () => {
+    rows.replaceChildren(...list.map((v, i) => h('div', { class: 'choice' },
+      h('div', { class: 'grow' }, v),
+      h('button', { class: 'x', 'aria-label': `Remove ${v}`, onclick: () => { list.splice(i, 1); save(); draw(); } }, '×'))));
+  };
+  draw();
+  const input = h('input', { 'aria-label': L.prompt, enterkeyhint: 'done', ...NO_CAPS });
+  const add = () => {
+    const v = input.value.trim();
+    if (v && !list.includes(v)) { list.push(v); save(); draw(); }
+    input.value = '';
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+  body.append(rows,
+    h('div', { class: 'add-preset' }, input, h('button', { onclick: add }, 'Add')),
+    h('button', { class: 'btn', onclick: () => { list.splice(0, list.length, ...L.defaults); save(); draw(); } }, 'Reset to defaults'),
+    h('p', { class: 'hint' }, 'Removing an item only hides it from the list. Anything already logged keeps it.'));
+  document.body.append(back, box);
 }
 
 function valueInput(block, onChange) {
