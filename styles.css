@@ -342,3 +342,16 @@ input, select, textarea { font-size: 16px !important; }
 #cloud .btn-row { margin-bottom: 6px; }
 .cdisc { display: block; margin: 8px 0 14px; color: var(--muted); font-size: 14px; }
 #cloud + .hint { border-top: 1px solid var(--line); padding-top: 12px; }
+
+/* Main-screen sets: numbers only, units are fixed labels; keep each set on one line. */
+.set { max-width: 100%; }
+.set .spec { flex-wrap: nowrap; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.set .spec::-webkit-scrollbar { display: none; }
+.set .tile { flex: none; height: 38px; padding: 0 8px 0 2px; border-radius: 11px; }
+.set .tile .val { height: 36px; min-width: 2.2ch; font-size: 18px !important; padding: 0 3px; }
+.ulabel { font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.ulabel.pre { padding: 0 2px 0 6px; }
+.set .jw { flex: none; font-size: 13px; }
+.set .jw.sign { min-width: 28px; height: 38px; font-size: 16px; }
+.set .sn { width: 16px; }
+.set .x { flex: none; width: 28px; height: 38px; }

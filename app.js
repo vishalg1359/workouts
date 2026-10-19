@@ -266,9 +266,9 @@ function specInline(spec, onChange) {
       ? h('button', { class: 'jw sign', 'aria-label': 'Switch plus / minus', onclick: (e) => { b.join = SIGNS[b.join]; e.currentTarget.textContent = b.join; onChange(); } }, b.join)
       : h('span', { class: 'jw' }, b.join)) : null,
     h('span', { class: 'tile' },
-      PREFIX_UNITS.has(b.unit) ? unitSelect(b, onChange) : null,
+      PREFIX_UNITS.has(b.unit) ? h('span', { class: 'ulabel pre' }, b.unit) : null,
       valueInput(b, onChange),
-      PREFIX_UNITS.has(b.unit) ? null : unitSelect(b, onChange))]));
+      !PREFIX_UNITS.has(b.unit) && b.unit ? h('span', { class: 'ulabel' }, b.unit) : null)]));
 }
 
 // Block builder used in the exercise form and entry editor.
