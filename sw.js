@@ -1,4 +1,4 @@
-const CACHE = 'workouts-v4';
+const CACHE = 'workouts-v5';
 const ASSETS = ['./', './index.html', './app.js', './styles.css', './manifest.webmanifest',
   './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 

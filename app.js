@@ -1,19 +1,28 @@
 'use strict';
 
 const STORE_KEY = 'workouts.v1';
-const DEFAULT_PRESETS = ['Upper Day', 'Lower Day', 'Push Day', 'Pull Day', 'Leg Day', 'Mobility Day', 'Rest Day'];
-const DEFAULT_PROFILE = { name: '', birthday: '', units: 'imperial', heightCm: null, weightKg: null, theme: 'auto' };
+const DEFAULT_PRESETS = ['Upper Day', 'Lower Day', 'Push Day', 'Pull Day', 'Leg Day', 'Mobility Day'];
+const DEFAULT_PRESET_COLORS = { 'upper day': '#2563eb', 'lower day': '#16a34a', 'push day': '#dc2626', 'pull day': '#7c3aed', 'leg day': '#d97706', 'mobility day': '#0d9488' };
+const DEFAULT_PROFILE = { name: '', birthday: '', units: 'imperial', heightCm: null, weightKg: null, theme: 'auto', accent: '#1e40af', pop: '#f97316' };
 const UNITS = ['sets', 'reps', 'lb', 'kg', 'sec', 'min', 'hr', 'mi', 'km', 'm', 'rounds', 'cal'];
 const JOINS = ['×', 'at', 'for', '@', 'of', '+', '/', ''];
 const PAGE_DAYS = 60;
 const NO_CAPS = { autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false' };
 
 // ---------- storage ----------
+function migrateDays(days) {
+  Object.values(days).forEach((day) => (day.entries || []).forEach((e) => {
+    if (!Array.isArray(e.sets)) e.sets = [Array.isArray(e.spec) ? e.spec : []];
+    delete e.spec;
+  }));
+  return days;
+}
 function normalize(s) {
   return {
     exercises: Array.isArray(s.exercises) ? s.exercises : [],
-    days: s.days && typeof s.days === 'object' ? s.days : {},
-    presets: Array.isArray(s.presets) ? s.presets : DEFAULT_PRESETS.slice(),
+    days: s.days && typeof s.days === 'object' ? migrateDays(s.days) : {},
+    presets: (Array.isArray(s.presets) ? s.presets : DEFAULT_PRESETS.slice()).filter((p) => !/^rest\b/i.test(p)),
+    presetColors: s.presetColors && typeof s.presetColors === 'object' ? s.presetColors : { ...DEFAULT_PRESET_COLORS },
     profile: { ...DEFAULT_PROFILE, ...(s.profile || {}) },
   };
 }
@@ -94,7 +103,7 @@ function selectBox(cls, options, current, onChange, label) {
   const sel = h('select', { class: cls, 'aria-label': label },
     opts.map((o) => h('option', { value: o }, o === '' ? '—' : o)));
   sel.value = current;
-  const fit = () => { sel.style.width = `calc(${Math.max(1, (sel.value || '—').length)}ch + 30px)`; };
+  const fit = () => { sel.style.width = `calc(${Math.max(1, (sel.value || "—").length)}ch + 12px)`; };
   fit();
   sel.addEventListener('change', () => { onChange(sel.value, sel); fit(); });
   return sel;
@@ -189,7 +198,6 @@ let rangeOldest;
 let rangeNewest;
 const monthStart = (d, n = 0) => new Date(d.getFullYear(), d.getMonth() + n, 1);
 const monthEnd = (d, n = 0) => new Date(d.getFullYear(), d.getMonth() + n + 1, 0);
-const MONTH_HUES = [[205, 250], [330, 10], [150, 190], [95, 140], [40, 85], [15, 45], [190, 230], [270, 320], [25, 55], [10, 35], [240, 280], [350, 30]];
 
 function initRange() {
   rangeOldest = monthStart(today(), -2);
@@ -197,11 +205,15 @@ function initRange() {
 }
 
 const fmt = (d, o) => d.toLocaleDateString(undefined, o);
-const isRestDay = (day) => day && !day.entries.length && /\brest\b/i.test(day.name);
+function isRestDay(key, day) {
+  if (day && day.entries.length) return false;
+  if (day && day.name) return /\brest\b/i.test(day.name);
+  return key < todayKey();
+}
+const dayColor = (day) => (day && day.name ? state.presetColors[day.name.trim().toLowerCase()] : '') || '';
 
 function monthHeader(d) {
-  const [a, b] = MONTH_HUES[d.getMonth()];
-  return h('div', { class: 'mhead', style: `--h1:${a};--h2:${b}`, 'data-anchor': `m${keyOf(d)}`, 'data-month': keyOf(d) },
+  return h('div', { class: 'mhead', 'data-anchor': `m${keyOf(d)}`, 'data-month': keyOf(d) },
     h('span', { class: 'mname' }, fmt(d, { month: 'long' })),
     h('span', { class: 'myear' }, d.getFullYear()));
 }
@@ -214,41 +226,58 @@ function nameField(key, day) {
   return input;
 }
 
-function renderEntries(key, day) {
-  return h('ul', { class: 'entries' }, day.entries.map((entry) => {
-    entry.spec ||= [];
-    return h('li', { class: 'entry' },
-      icon(entry, 'lg'),
-      h('div', { class: 'etext' },
-        h('button', { class: 'ename', onclick: () => openEntryEditor(key, entry.id) }, entry.name),
-        entry.spec.length ? specInline(entry.spec, save) : null,
-        entry.details ? h('div', { class: 'edetails' }, entry.details) : null));
-  }));
+const isDone = (key, entry) => (entry.done == null ? key < todayKey() : entry.done);
+
+function doneSummary(spec) {
+  return spec.filter((b) => String(b.value || '').trim())
+    .map((b, i) => [i > 0 ? b.join : '', String(b.value).trim(), b.unit].filter(Boolean).join(' '))
+    .join(' ');
+}
+
+function renderEntry(key, entry) {
+  const done = isDone(key, entry);
+  const toggle = h('button', { class: `check${done ? ' on' : ''}`, 'aria-label': done ? 'Edit' : 'Done',
+    onclick: () => { entry.done = !done; save(); refreshDay(key); } }, done ? '✓' : '');
+  const head = h('div', { class: 'ex-head' },
+    icon(entry, 'sm'),
+    h('button', { class: 'ename', onclick: () => openEntryEditor(key, entry.id) }, entry.name),
+    toggle);
+  const rows = done
+    ? entry.sets.map(doneSummary).filter(Boolean).map((t) => h('div', { class: 'set-text' }, t))
+    : entry.sets.map((spec, i) => h('div', { class: 'set' },
+        specInline(spec, save),
+        entry.sets.length > 1 ? h('button', { class: 'x', 'aria-label': 'Remove set',
+          onclick: () => { entry.sets.splice(i, 1); save(); refreshDay(key); } }, '×') : null));
+  return h('div', { class: `ex${done ? ' done' : ''}` }, head,
+    h('div', { class: 'sets' }, rows,
+      !done ? h('button', { class: 'add-set', onclick: () => {
+        const last = entry.sets[entry.sets.length - 1] || [];
+        entry.sets.push(cloneSpec(last));
+        save();
+        refreshDay(key);
+      } }, '+ set') : null),
+    entry.details ? h('div', { class: 'edetails' }, entry.details) : null);
 }
 
 function renderDay(key) {
   const date = dateOf(key);
   const day = getDay(key);
   const isToday = key === todayKey();
-  const pick = h('button', { class: 'chip', 'aria-label': 'Pick a day name', onclick: () => openPresetPicker(key) }, '▾');
-  const add = h('button', { class: 'chip add', 'aria-label': 'Add exercise', onclick: () => openExercisePicker(key) }, '+');
-  let body;
-  if (isRestDay(day)) {
-    body = h('div', { class: 'rest' }, h('span', { class: 'rest-name' }, day.name), pick, add);
-  } else if (day || isToday) {
-    body = h('div', { class: `block${day && day.entries.length ? '' : ' empty'}` },
-      h('div', { class: 'block-head' }, nameField(key, day), pick),
-      day && day.entries.length ? renderEntries(key, day) : null,
-      h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ Add exercise'));
-  } else {
-    body = h('div', { class: 'blank' }, pick, add);
-  }
-  const weekStart = date.getDay() === 1;
-  return h('div', { class: `drow${isToday ? ' today' : ''}${weekStart ? ' week' : ''}`, 'data-anchor': key, 'data-key': key },
-    h('div', { class: 'dcol' },
-      h('span', { class: 'dow' }, fmt(date, { weekday: 'short' })),
-      h('span', { class: 'dnum' }, date.getDate())),
-    body);
+  const entries = day ? day.entries : [];
+  const label = `${isToday ? 'Today · ' : ''}${fmt(date, { weekday: 'short', month: 'short', day: 'numeric' })}`;
+  const rest = isRestDay(key, day);
+  const color = dayColor(day);
+  const head = h('div', { class: 'dhead' },
+    h('span', { class: 'ddate' }, label),
+    rest && !(day && day.name)
+      ? h('button', { class: 'rest-label', onclick: () => openPresetPicker(key) }, '☾ Rest day')
+      : nameField(key, day),
+    h('button', { class: 'chip', 'aria-label': 'Pick a day name', onclick: () => openPresetPicker(key) }, '▾'),
+    h('button', { class: 'chip add', 'aria-label': 'Add exercise', onclick: () => openExercisePicker(key) }, '+'));
+  return h('div', { class: `day${isToday ? ' today' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}`,
+    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key },
+    head,
+    entries.length ? h('div', { class: 'exs' }, entries.map((e) => renderEntry(key, e))) : null);
 }
 
 function renderRange(from, to) {
@@ -368,6 +397,13 @@ function field(label, input) { return h('label', { class: 'field' }, h('span', {
 function fieldDiv(label, content) { return h('div', { class: 'field' }, h('span', {}, label), content); }
 
 // ---------- day name presets ----------
+function refreshFeedColors(name) {
+  const ck = name.trim().toLowerCase();
+  Object.keys(state.days).forEach((k) => {
+    const d = state.days[k];
+    if (d.name && d.name.trim().toLowerCase() === ck) refreshDay(k);
+  });
+}
 function openPresetPicker(key) {
   const setName = (name) => {
     ensureDay(key).name = name;
@@ -380,9 +416,14 @@ function openPresetPicker(key) {
   const draw = () => {
     list.textContent = '';
     state.presets.forEach((p, i) => {
+      const ck = p.trim().toLowerCase();
+      const color = h('input', { type: 'color', class: 'pcolor', value: state.presetColors[ck] || '#64748b', 'aria-label': `${p} color` });
+      color.addEventListener('input', () => { state.presetColors[ck] = color.value; save(); });
+      color.addEventListener('change', () => refreshFeedColors(p));
       list.append(h('div', { class: 'choice' },
+        color,
         h('div', { class: 'grow', onclick: () => setName(p) }, p),
-        h('button', { class: 'x', 'aria-label': `Remove ${p}`, onclick: () => { state.presets.splice(i, 1); save(); draw(); } }, '×')));
+        h('button', { class: 'x', 'aria-label': `Remove ${p}`, onclick: () => { state.presets.splice(i, 1); delete state.presetColors[ck]; save(); draw(); } }, '×')));
     });
   };
   draw();
@@ -401,7 +442,7 @@ function openPresetPicker(key) {
   openSheet('Day name',
     list,
     h('div', { class: 'add-preset' }, custom, h('button', { onclick: useCustom }, 'Use'), h('button', { class: 'soft', onclick: keepCustom }, 'Save to list')),
-    day && day.name ? h('button', { class: 'btn danger', onclick: () => setName('') }, 'Clear name') : null);
+    day && day.name ? h('button', { class: 'btn', onclick: () => setName('') }, key < todayKey() ? 'Back to rest day' : 'Clear name') : null);
 }
 
 // ---------- exercise picker (add to a day) ----------
@@ -429,13 +470,13 @@ function openExercisePicker(key) {
 }
 
 function addToDay(key, ex) {
-  const entry = { id: uid(), exerciseId: ex.id, name: ex.name, image: ex.image || '', spec: cloneSpec(ex.spec) };
+  const entry = { id: uid(), exerciseId: ex.id, name: ex.name, image: ex.image || '', sets: [cloneSpec(ex.spec)] };
   if (ex.details) entry.details = ex.details;
   ensureDay(key).entries.push(entry);
   save();
   closeSheet();
   refreshDay(key);
-  const blank = feedEl.querySelector(`[data-key="${key}"] .entry:last-child .val`);
+  const blank = feedEl.querySelector(`[data-key="${key}"] .ex:last-child .val`);
   if (blank && !blank.value) blank.focus({ preventScroll: true });
 }
 
@@ -447,7 +488,13 @@ function openEntryEditor(key, id) {
   if (idx < 0) return;
   const entry = day.entries[idx];
   const name = h('input', { value: entry.name, ...NO_CAPS });
-  const spec = cloneSpec(entry.spec);
+  const sets = entry.sets.map(cloneSpec);
+  const setsWrap = h('div', {});
+  const drawSets = () => {
+    setsWrap.replaceChildren(...sets.map((spec, i) => fieldDiv(sets.length > 1 ? `Set ${i + 1}` : 'Blocks', blockEditor(spec),
+      sets.length > 1 ? h('button', { class: 'link', onclick: () => { sets.splice(i, 1); drawSets(); } }, 'Remove set') : null)));
+  };
+  drawSets();
   const done = () => { save(); closeSheet(); refreshDay(key); };
   const move = (delta) => {
     const j = idx + delta;
@@ -457,10 +504,11 @@ function openEntryEditor(key, id) {
   };
   openSheet('This day only',
     field('Name', name),
-    fieldDiv('Blocks', blockEditor(spec)),
+    setsWrap,
+    h('button', { class: 'btn small', onclick: () => { sets.push(cloneSpec(sets[sets.length - 1] || [])); drawSets(); } }, '+ Add set'),
     h('button', { class: 'btn primary', onclick: () => {
       entry.name = name.value.trim() || entry.name;
-      entry.spec = spec;
+      entry.sets = sets;
       done();
     } }, 'Save'),
     h('div', { class: 'btn-row' },
@@ -550,6 +598,8 @@ document.getElementById('new-exercise-btn').addEventListener('click', () => open
 // ---------- profile ----------
 function applyTheme() {
   const t = state.profile.theme;
+  document.documentElement.style.setProperty('--accent', state.profile.accent);
+  document.documentElement.style.setProperty('--pop', state.profile.pop);
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
 }
@@ -576,6 +626,22 @@ function numInput(value, suffix, onInput) {
   return h('span', { class: 'numwrap' }, inp, h('span', { class: 'suffix' }, suffix));
 }
 
+const PALETTES = [['Ocean', '#1e40af', '#f97316'], ['Navy & Red', '#1e3a8a', '#dc2626'], ['Ember', '#b91c1c', '#f59e0b'], ['Orange', '#ea580c', '#1d4ed8'], ['Forest', '#166534', '#f59e0b'], ['Grape', '#6d28d9', '#f43f5e']];
+function colorPicker(p) {
+  const swatches = PALETTES.map(([name, a, b]) => h('button', {
+    class: `swatch${p.accent === a && p.pop === b ? ' on' : ''}`, 'aria-label': name, title: name,
+    style: `background: linear-gradient(135deg, ${a} 50%, ${b} 50%)`,
+    onclick: () => { p.accent = a; p.pop = b; save(); applyTheme(); renderProfile(); } }));
+  const custom = (prop, label) => {
+    const inp = h('input', { type: 'color', value: p[prop], 'aria-label': label });
+    inp.addEventListener('input', () => { p[prop] = inp.value; save(); applyTheme(); });
+    inp.addEventListener('change', renderProfile);
+    return inp;
+  };
+  return h('div', { class: 'colors' }, h('div', { class: 'swatches' }, swatches),
+    h('div', { class: 'pair' }, h('label', { class: 'cpick' }, custom('accent', 'Main color'), 'Main'),
+      h('label', { class: 'cpick' }, custom('pop', 'Highlight color'), 'Highlight')));
+}
 function renderProfile() {
   const p = state.profile;
   const root = document.getElementById('profile');
@@ -622,6 +688,7 @@ function renderProfile() {
       row('Weight', weight))),
     h('div', { class: 'group' }, h('h2', {}, 'Settings'), h('div', { class: 'group-card' },
       row('Units', segmented([['imperial', 'lb · ft'], ['metric', 'kg · cm']], p.units, (v) => { p.units = v; save(); renderProfile(); })),
+      row('Colors', colorPicker(p)),
       row('Appearance', segmented([['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']], p.theme, (v) => { p.theme = v; save(); applyTheme(); renderProfile(); })))));
 }
 
