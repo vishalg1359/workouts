@@ -12,7 +12,7 @@ const SIGNS = { '+': '−', '−': '+' };
 // Starter library: [name, icon, spec]. Spec blocks are 'join|unit'; W = the profile weight unit. Order = popularity.
 const STARTERS = [
   ['bench press', 'bench', 'L'], ['squats', 'squat', 'L'], ['deadlift', 'deadlift', 'L'], ['pull-ups', 'pullup', 'B'],
-  ['dumbbell bench press', 'db-bench', 'L'], ['incline bench press', 'incline', 'L'], ['overhead press', 'ohp', 'L'],
+  ['dumbbell bench press', 'db-bench', 'L'], ['machine chest press', 'chest-press', 'L'], ['incline bench press', 'incline', 'L'], ['overhead press', 'ohp', 'L'],
   ['barbell rows', 'bb-row', 'L'], ['lat pulldown', 'pulldown', 'L'], ['cable rows', 'cable-row', 'L'], ['bicep curls', 'curl', 'L'],
   ['tricep pushdowns', 'pushdown', 'L'], ['leg press', 'legpress', 'L'], ['romanian deadlift', 'rdl', 'L'], ['lunges', 'lunge', 'L'],
   ['push-ups', 'pushup', 'R'], ['plank', 'plank', 'T'], ['treadmill', 'treadmill', ['|mph', 'for|min', 'at|% incline']],
@@ -70,14 +70,20 @@ let state = load();
 // Adds the starter library once. Existing exercises with the same name keep their data and just gain the icon.
 function seedStarters() {
   if (state.seed < 1) seedV1();
+  if (state.seed < 3) {
+    if (state.seed >= 1 && !state.exercises.some((e) => e.name.trim().toLowerCase() === 'machine chest press')) {
+      state.exercises.push({ id: uid(), name: 'machine chest press', image: '', icon: iconPath('chest-press'),
+        spec: [{ join: '', value: '', unit: 'sets' }, { join: '×', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
+    }
+  }
   if (state.seed < 2) {
     const isBench = (o) => o.name.trim().toLowerCase() === 'bench press';
     const ids = new Set();
     for (const ex of state.exercises) if (isBench(ex)) { ex.image = ''; ex.icon = 'icons/bench.svg'; ids.add(ex.id); }
     for (const d of Object.values(state.days)) for (const e of d.entries) if (ids.has(e.exerciseId) || isBench(e)) { e.image = ''; e.icon = 'icons/bench.svg'; }
     state.seed = 2;
-    save();
   }
+  if (state.seed < 3) { state.seed = 3; save(); }
 }
 function seedV1() {
   const w = weightUnit();
@@ -369,12 +375,22 @@ function doneSummary(spec) {
     .join(' ');
 }
 
+// Tapping an exercise's icon opens its history.
+function entryIcon(entry) {
+  const ic = icon(entry, 'sm');
+  ic.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const ex = state.exercises.find((x) => x.id === entry.exerciseId) || { id: entry.exerciseId, name: entry.name, spec: [] };
+    openHistory(ex);
+  });
+  return ic;
+}
 // Only today is editable in the feed; tap any other day to edit it in a sheet.
 const isPast = (key) => key < todayKey();
 const isLocked = (key) => key !== todayKey();
 function renderReadOnlyEntry(entry) {
   return h('div', { class: 'ex-wrap' }, h('div', { class: 'ex done' },
-    h('div', { class: 'ex-head' }, icon(entry, 'sm'), h('span', { class: 'ename' }, entry.name)),
+    h('div', { class: 'ex-head' }, entryIcon(entry), h('span', { class: 'ename' }, entry.name)),
     h('div', { class: 'sets' }, entry.sets.map(doneSummary).filter(Boolean).map((t) => h('div', { class: 'set-text' }, t))),
     entry.details ? h('div', { class: 'edetails' }, entry.details) : null));
 }
@@ -382,7 +398,7 @@ function renderEntry(key, entry, editable) {
   if (!editable) return renderReadOnlyEntry(entry);
   const done = isDone(key, entry);
   const head = h('div', { class: 'ex-head' },
-    icon(entry, 'sm'),
+    entryIcon(entry),
     h('button', { class: 'ename', onclick: () => openEntryEditor(key, entry.id) }, entry.name));
   const rows = done
     ? entry.sets.map(doneSummary).filter(Boolean).map((t) => h('button', { class: 'set-text', onclick: () => openEntryEditor(key, entry.id) }, t))
