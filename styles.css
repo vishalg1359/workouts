@@ -69,11 +69,12 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 
 .day { padding: 6px 16px 8px; border-top: 1px solid var(--line); scroll-margin-top: 110px; }
 .mhead + .day { border-top: 0; }
-.day.today { box-shadow: inset 4px 0 0 var(--pop); background: var(--pop-soft); }
+.day.today { box-shadow: inset 4px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .dhead { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .ddate { flex: none; font-size: 15px; font-weight: 700; color: var(--muted); }
 .day.has .ddate { color: var(--fg); }
-.day.today .ddate { color: var(--pop); }
+.day.today .ddate { color: var(--fg); }
+.tpill { flex: none; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: var(--accent); padding: 2px 7px; border-radius: 999px; }
 .dayname {
   flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
   font-size: 16px; font-weight: 700; color: var(--ink); padding: 4px 0; border-bottom: 1.5px solid transparent;
@@ -89,7 +90,7 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 .day.tinted { box-shadow: inset 4px 0 0 var(--day); }
 .day.tinted .dayname { color: var(--day); }
 .day.tinted.has { background: color-mix(in srgb, var(--day) 7%, transparent); }
-.day.today.tinted { box-shadow: inset 4px 0 0 var(--day); background: var(--pop-soft); }
+.day.today.tinted { box-shadow: inset 4px 0 0 var(--day); background: color-mix(in srgb, var(--day) 8%, transparent); }
 .chip {
   width: 30px; height: 30px; flex: none; display: grid; place-items: center;
   border-radius: 50%; color: var(--muted); font-size: 13px;
@@ -102,11 +103,9 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 .ex + .ex { border-top: 1px solid var(--line); }
 .ex-head { display: flex; align-items: center; gap: 10px; }
 .ex .ename { flex: 1; min-width: 0; text-align: left; font-size: 16px; font-weight: 700; }
-.check {
-  width: 26px; height: 26px; flex: none; border-radius: 50%; border: 2px solid var(--line);
-  display: grid; place-items: center; font-size: 14px; font-weight: 800; color: #fff;
-}
-.check.on { background: var(--accent); border-color: var(--accent); }
+.ex-actions { display: flex; align-items: center; gap: 14px; margin-top: 2px; }
+.done-btn { font-size: 13px; font-weight: 700; color: var(--ink); padding: 3px 12px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--ink) 45%, transparent); }
+.set-text { text-align: left; }
 .sets { margin: 4px 0 0 38px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .set { display: flex; align-items: center; gap: 4px; max-width: 100%; }
 .set .x { font-size: 18px; width: 26px; height: 26px; }

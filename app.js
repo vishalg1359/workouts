@@ -236,26 +236,25 @@ function doneSummary(spec) {
 
 function renderEntry(key, entry) {
   const done = isDone(key, entry);
-  const toggle = h('button', { class: `check${done ? ' on' : ''}`, 'aria-label': done ? 'Edit' : 'Done',
-    onclick: () => { entry.done = !done; save(); refreshDay(key); } }, done ? '✓' : '');
   const head = h('div', { class: 'ex-head' },
     icon(entry, 'sm'),
-    h('button', { class: 'ename', onclick: () => openEntryEditor(key, entry.id) }, entry.name),
-    toggle);
+    h('button', { class: 'ename', onclick: () => openEntryEditor(key, entry.id) }, entry.name));
   const rows = done
-    ? entry.sets.map(doneSummary).filter(Boolean).map((t) => h('div', { class: 'set-text' }, t))
+    ? entry.sets.map(doneSummary).filter(Boolean).map((t) => h('button', { class: 'set-text', onclick: () => openEntryEditor(key, entry.id) }, t))
     : entry.sets.map((spec, i) => h('div', { class: 'set' },
         specInline(spec, save),
         entry.sets.length > 1 ? h('button', { class: 'x', 'aria-label': 'Remove set',
           onclick: () => { entry.sets.splice(i, 1); save(); refreshDay(key); } }, '×') : null));
   return h('div', { class: `ex${done ? ' done' : ''}` }, head,
     h('div', { class: 'sets' }, rows,
-      !done ? h('button', { class: 'add-set', onclick: () => {
-        const last = entry.sets[entry.sets.length - 1] || [];
-        entry.sets.push(cloneSpec(last));
-        save();
-        refreshDay(key);
-      } }, '+ set') : null),
+      !done ? h('div', { class: 'ex-actions' },
+        h('button', { class: 'add-set', onclick: () => {
+          const last = entry.sets[entry.sets.length - 1] || [];
+          entry.sets.push(cloneSpec(last));
+          save();
+          refreshDay(key);
+        } }, '+ set'),
+        h('button', { class: 'done-btn', onclick: () => { entry.done = true; save(); refreshDay(key); } }, 'Done')) : null),
     entry.details ? h('div', { class: 'edetails' }, entry.details) : null);
 }
 
@@ -264,11 +263,12 @@ function renderDay(key) {
   const day = getDay(key);
   const isToday = key === todayKey();
   const entries = day ? day.entries : [];
-  const label = `${isToday ? 'Today · ' : ''}${fmt(date, { weekday: 'short', month: 'short', day: 'numeric' })}`;
+  const label = fmt(date, { weekday: 'short', month: 'short', day: 'numeric' });
   const rest = isRestDay(key, day);
   const color = dayColor(day);
   const head = h('div', { class: 'dhead' },
     h('span', { class: 'ddate' }, label),
+    isToday ? h('span', { class: 'tpill' }, 'Today') : null,
     rest && !(day && day.name)
       ? h('button', { class: 'rest-label', onclick: () => openPresetPicker(key) }, '☾ Rest day')
       : nameField(key, day),
@@ -511,6 +511,9 @@ function openEntryEditor(key, id) {
       entry.sets = sets;
       done();
     } }, 'Save'),
+    isDone(key, entry)
+      ? h('button', { class: 'btn', onclick: () => { entry.done = false; done(); } }, 'Edit sets on the day')
+      : h('button', { class: 'btn', onclick: () => { entry.done = true; done(); } }, 'Mark done'),
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn', disabled: idx === 0, onclick: () => move(-1) }, 'Move up'),
       h('button', { class: 'btn', disabled: idx === day.entries.length - 1, onclick: () => move(1) }, 'Move down')),
