@@ -87,7 +87,13 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 .day.rest .ddate { font-size: 13px; }
 .day.rest .chip { opacity: 0.3; width: 26px; height: 26px; }
 .day.rest .ddate, .day.rest .dayname { color: var(--muted); font-weight: 600; }
-.rest-label { flex: 1; text-align: left; color: var(--muted); font-style: italic; font-weight: 500; font-size: 13px; opacity: 0.8; }
+.day.past { cursor: pointer; }
+.day.past .dhead { min-height: 38px; }
+.dayname.static { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty-box { flex: 1; height: 16px; border: 1.5px dashed var(--line); border-radius: 7px; opacity: 0.9; }
+.day-name-row { display: flex; align-items: center; gap: 8px; }
+.day-name-row .dayname { border-bottom: 1px solid var(--line); }
+.cname { font-weight: 700; }
 .day.tinted { box-shadow: inset 4px 0 0 var(--day); }
 .day.tinted .dayname { color: var(--day); }
 .day.tinted.has { background: color-mix(in srgb, var(--day) 7%, transparent); }
