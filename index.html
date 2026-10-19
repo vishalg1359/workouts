@@ -19,23 +19,13 @@
   <section id="view-today" class="view active">
     <header class="topbar">
       <button id="day-title" class="day-title" aria-label="Pick a day"></button>
-      <div class="topbar-actions">
-        <button id="day-prev" class="pill" aria-label="Previous day">‹</button>
-        <button id="day-next" class="pill" aria-label="Next day">›</button>
-      </div>
     </header>
     <div id="today"></div>
   </section>
 
   <section id="view-log" class="view">
     <header class="topbar">
-      <div class="tleft">
-        <button id="m-prev" class="ibtn" aria-label="Previous month" hidden>‹</button>
-        <label class="title-jump"><h1 id="log-title">Log</h1><span class="caret">▾</span>
-          <input id="jump-input" type="date" aria-label="Go to date">
-        </label>
-        <button id="m-next" class="ibtn" aria-label="Next month" hidden>›</button>
-      </div>
+      <h1 id="log-title">Log</h1>
       <div class="topbar-actions">
         <button id="today-btn" class="ibtn" aria-label="Today"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" class="fill"/></svg></button>
         <button id="cal-toggle" class="ibtn" aria-label="Month view"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9.5 10v10M14.5 10v10M3.5 15h17"/></svg></button>
@@ -102,6 +92,7 @@
   <div id="sheet-body" class="sheet-body"></div>
 </div>
 
+<script src="iconkit.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

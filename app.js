@@ -653,15 +653,11 @@ const GRID_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="
 const LIST_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1" class="fill"/><circle cx="4" cy="12" r="1" class="fill"/><circle cx="4" cy="18" r="1" class="fill"/></svg>';
 let calMode = 'list';
 let gridMonth = null;
-function renderMonthGrid() {
-  const root = document.getElementById('month');
+function monthBlock(first) {
   const t = todayKey();
-  if (!gridMonth) { const d = dateOf(t); gridMonth = new Date(d.getFullYear(), d.getMonth(), 1); }
-  const y = gridMonth.getFullYear(), m = gridMonth.getMonth();
-  const step = (n) => { gridMonth = new Date(y, m + n, 1); renderMonthGrid(); };
+  const y = first.getFullYear(), m = first.getMonth();
   const cells = [];
-  const lead = new Date(y, m, 1).getDay();
-  for (let i = 0; i < lead; i++) cells.push(h('div', { class: 'mcell blank' }));
+  for (let i = 0; i < first.getDay(); i++) cells.push(h('div', { class: 'mcell blank' }));
   const days = new Date(y, m + 1, 0).getDate();
   for (let n = 1; n <= days; n++) {
     const k = keyOf(new Date(y, m, n));
@@ -676,26 +672,38 @@ function renderMonthGrid() {
       name && !rest ? h('span', { class: 'mtype' }, name) : null,
       entries.length ? h('span', { class: 'mbars' }, entries.slice(0, 4).map(() => h('i')), entries.length > 4 ? h('b', {}, `+${entries.length - 4}`) : null) : null));
   }
-  monthStep = step;
-  logTitle.textContent = fmt(gridMonth, gridMonth.getFullYear() === today().getFullYear() ? { month: 'long' } : { month: 'short', year: 'numeric' });
-  root.replaceChildren(
+  return h('section', { class: 'mblock', 'data-month': keyOf(first) },
+    h('div', { class: 'mlabel' }, fmt(first, { month: 'long', year: 'numeric' })),
     h('div', { class: 'mgrid mdow' }, ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => h('span', {}, d))),
     h('div', { class: 'mgrid mdays' }, cells));
-  sizeMonth();
 }
-let monthStep = () => {};
-function sizeMonth() {
+const gridTop = () => document.querySelector('#view-log .topbar').getBoundingClientRect().bottom;
+function currentGridMonth() {
+  const top = gridTop();
+  const el = [...document.querySelectorAll('#month .mblock')].find((b) => b.getBoundingClientRect().bottom > top + 1);
+  return el ? { key: el.dataset.month, off: top - el.getBoundingClientRect().top } : null;
+}
+// Month view: every month stacked, each one screen tall; scroll up and down between them.
+function renderMonthGrid(focusKey) {
   const root = document.getElementById('month');
-  if (root.hidden) return;
+  const t = todayKey();
+  const now = dateOf(t);
+  const monthOf = (k) => { const d = dateOf(k); return keyOf(new Date(d.getFullYear(), d.getMonth(), 1)); };
+  const keep = focusKey ? null : currentGridMonth();
+  let start = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  const logged = Object.keys(state.days).filter((k) => state.days[k].entries.length).sort();
+  if (logged.length && dateOf(monthOf(logged[0])) < start) start = dateOf(monthOf(logged[0]));
+  const end = new Date(now.getFullYear(), now.getMonth() + 6, 1);
+  const blocks = [];
+  for (let d = start; d <= end; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) blocks.push(monthBlock(d));
   const tab = document.querySelector('.tabbar').getBoundingClientRect().height;
-  const want = window.innerHeight - tab - document.querySelector('#view-log .topbar').offsetHeight;
-  root.style.height = `${Math.max(320, want)}px`;
-  const extra = document.documentElement.scrollHeight - window.innerHeight;
-  if (extra > 0) root.style.height = `${Math.max(320, want - extra)}px`;
+  root.style.setProperty('--mh', `${Math.max(340, window.innerHeight - tab - document.querySelector('#view-log .topbar').offsetHeight)}px`);
+  root.replaceChildren(...blocks);
+  const target = keep || { key: monthOf(focusKey || t), off: 0 };
+  const el = root.querySelector(`[data-month="${target.key}"]`);
+  if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - gridTop() + target.off);
+  updateTitle();
 }
-window.addEventListener('resize', () => { if (calMode === 'grid') sizeMonth(); });
-document.getElementById('m-prev').addEventListener('click', () => monthStep(-1));
-document.getElementById('m-next').addEventListener('click', () => monthStep(1));
 function setCalMode(mode) {
   calMode = mode;
   const grid = mode === 'grid';
@@ -703,9 +711,8 @@ function setCalMode(mode) {
   feedEl.hidden = grid;
   document.getElementById('cal-toggle').innerHTML = grid ? LIST_ICON : GRID_ICON;
   document.getElementById('cal-toggle').setAttribute('aria-label', grid ? 'List view' : 'Month view');
-  document.getElementById('m-prev').hidden = document.getElementById('m-next').hidden = !grid;
   document.getElementById('view-log').classList.toggle('grid-mode', grid);
-  if (grid) { gridMonth = null; renderMonthGrid(); window.scrollTo(0, 0); }
+  if (grid) renderMonthGrid(todayKey());
   else requestAnimationFrame(() => { scrollToToday(false); updateTitle(); });
 }
 document.getElementById('cal-toggle').addEventListener('click', () => setCalMode(calMode === 'grid' ? 'list' : 'grid'));
@@ -715,6 +722,7 @@ let viewDay = null;
 const dayViewKey = () => (viewDay && viewDay < todayKey() ? viewDay : todayKey());
 const todayTabActive = () => document.getElementById('view-today').classList.contains('active');
 function setViewDay(key) {
+  closeDayPicker();
   viewDay = key >= todayKey() ? null : key;
   lastDayOpen = false;
   closePad();
@@ -733,28 +741,40 @@ function dayTitleText(key) {
   if (key === keyOf(y)) return 'Yesterday';
   return fmt(dateOf(key), { weekday: 'short', month: 'short', day: 'numeric' });
 }
+let dayPop = null;
+function closeDayPicker() { if (dayPop) { dayPop.remove(); dayPop = null; } }
 function openDayPicker() {
-  const list = h('div', {});
+  if (dayPop) { closeDayPicker(); return; }
+  const title = document.getElementById('day-title');
+  const list = h('div', { class: 'daypop' });
   let shown = 0;
-  const more = h('button', { class: 'btn', onclick: () => addDays(60) }, 'Show older days');
   const addDays = (n) => {
     const d = dateOf(todayKey());
     d.setDate(d.getDate() - shown);
     for (let i = 0; i < n; i++, shown++, d.setDate(d.getDate() - 1)) {
       const k = keyOf(d);
       const day = getDay(k);
-      const color = day && !isRestDay(k, day) ? dayColor(day) : '';
-      list.append(h('div', { class: `choice${k === dayViewKey() ? ' on' : ''}`, style: color ? `--day:${color}` : null, onclick: () => { closeSheet(); setViewDay(k); } },
-        h('div', { class: 'grow' }, h('div', { class: 'dp-date' }, dayTitleText(k) === 'Today' || dayTitleText(k) === 'Yesterday' ? `${dayTitleText(k)} · ${fmt(d, { month: 'short', day: 'numeric' })}` : fmt(d, { weekday: 'short', month: 'short', day: 'numeric', year: d.getFullYear() === today().getFullYear() ? undefined : 'numeric' })),
-          h('div', { class: 'dp-sub' }, day && day.entries.length ? `${day.name.trim() || 'Workout'} · ${day.entries.length} exercise${day.entries.length > 1 ? 's' : ''}` : 'rest day'))));
+      const worked = day && day.entries.length;
+      const color = worked && !isRestDay(k, day) ? dayColor(day) : '';
+      const name = dayTitleText(k);
+      const label = name === 'Today' || name === 'Yesterday' ? `${name} · ${fmt(d, { month: 'short', day: 'numeric' })}`
+        : fmt(d, { weekday: 'short', month: 'short', day: 'numeric', year: d.getFullYear() === today().getFullYear() ? undefined : 'numeric' });
+      list.append(h('button', { class: `dprow${k === dayViewKey() ? ' on' : ''}`, style: color ? `--day:${color}` : null, onclick: () => setViewDay(k) },
+        h('span', { class: `dp-dot${worked ? ' on' : ''}` }),
+        h('span', { class: 'grow' }, h('div', { class: 'dp-date' }, label),
+          h('div', { class: 'dp-sub' }, worked ? `${day.name.trim() || 'Workout'} · ${day.entries.length} exercise${day.entries.length > 1 ? 's' : ''}` : 'rest day'))));
     }
   };
-  addDays(60);
-  openSheet('Pick a day', list, more);
+  addDays(30);
+  list.addEventListener('scroll', () => { if (list.scrollTop + list.clientHeight > list.scrollHeight - 80) addDays(30); }, { passive: true });
+  const r = title.getBoundingClientRect();
+  list.style.top = `${r.bottom + 6}px`;
+  list.style.left = `${Math.max(10, r.left - 4)}px`;
+  document.body.append(list);
+  dayPop = list;
 }
+document.addEventListener('pointerdown', (e) => { if (dayPop && !e.target.closest('.daypop, #day-title')) closeDayPicker(); }, true);
 document.getElementById('day-title').addEventListener('click', openDayPicker);
-document.getElementById('day-prev').addEventListener('click', () => shiftViewDay(-1));
-document.getElementById('day-next').addEventListener('click', () => shiftViewDay(1));
 // Today's box reaches down so the last-workout bar rests just above the tab bar; opening it only grows the page downward.
 function sizeTodayBox() {
   const root = document.getElementById('today');
@@ -763,10 +783,10 @@ function sizeTodayBox() {
   box.classList.add('daybox');
   box.style.minHeight = '';
   const bar = root.querySelector('.lastday .wbar');
-  if (!bar) return;
-  const tab = document.querySelector('.tabbar').getBoundingClientRect().height;
+  if (!bar || !todayTabActive()) return;
+  const tabTop = document.querySelector('.tabbar').getBoundingClientRect().top;
   const top = box.getBoundingClientRect().top + window.scrollY;
-  const room = window.innerHeight - tab - bar.offsetHeight - 18 - 14 - top;
+  const room = tabTop - bar.offsetHeight - 18 - 14 - top;
   if (room <= 0) return;
   box.style.minHeight = `${room}px`;
   const exs = root.querySelector('.lastday .exs');
@@ -781,7 +801,6 @@ function renderToday() {
   if (!root) return;
   const key = dayViewKey();
   document.getElementById('day-title').replaceChildren(dayTitleText(key), h('span', { class: 'caret' }, ' ▾'));
-  document.getElementById('day-next').disabled = key === todayKey();
   const last = lastDayBar(key);
   root.classList.toggle('with-last', !!last);
   root.replaceChildren(renderDay(key, true), last || '');
@@ -843,19 +862,15 @@ function updateTitle() {
 }
 let titleQueued = false;
 window.addEventListener('scroll', () => {
-  if (titleQueued || !logActive() || calMode === 'grid') return;
+  if (titleQueued || !logActive()) return;
   titleQueued = true;
   requestAnimationFrame(() => { titleQueued = false; updateTitle(); });
 }, { passive: true });
 
-document.getElementById('today-btn').addEventListener('click', () => { if (calMode === 'grid') { gridMonth = null; renderMonthGrid(); } });
+document.getElementById('today-btn').addEventListener('click', () => { if (calMode === 'grid') renderMonthGrid(todayKey()); });
+document.querySelector('.tab[data-view="log"]').addEventListener('click', () => { if (calMode === 'grid') requestAnimationFrame(() => renderMonthGrid(todayKey())); });
+document.querySelector('.tab[data-view="today"]').addEventListener('click', () => requestAnimationFrame(sizeTodayBox));
 document.getElementById('today-btn').addEventListener('click', () => scrollToToday(true));
-const jumpInput = document.getElementById('jump-input');
-jumpInput.addEventListener('change', () => {
-  if (!jumpInput.value) return;
-  if (calMode === 'grid') { const d = dateOf(jumpInput.value); gridMonth = new Date(d.getFullYear(), d.getMonth(), 1); renderMonthGrid(); } else jumpTo(jumpInput.value);
-});
-jumpInput.addEventListener('focus', () => { if (!jumpInput.value) jumpInput.value = todayKey(); });
 
 // ---------- sheet ----------
 const sheet = document.getElementById('sheet');
@@ -1141,10 +1156,29 @@ function openExerciseForm(ex, afterSave) {
     try { image = await shrinkPhoto(f); link.value = ''; drawPreview(); } catch (_) { alert('Could not read that picture.'); }
   });
   drawPreview();
+  // Icon: keep the current one, or build one from a pose + equipment (auto-guessed from the name until you pick).
+  let iconSpec = ex && ex.iconSpec ? { ...ex.iconSpec } : null;
+  let picked = !!iconSpec || !!(ex && ex.icon);
+  const glyph = h('div', { class: 'icon-prev' });
+  const poseRow = h('div', { class: 'ichips' });
+  const equipRow = h('div', { class: 'ichips' });
+  const currentIcon = () => (iconSpec ? IconKit.url(iconSpec.pose, iconSpec.equip) : ex && ex.icon) || '';
+  const drawIcon = () => {
+    if (!picked) iconSpec = IconKit.guess(name.value);
+    const spec = iconSpec || IconKit.guess(name.value);
+    glyph.replaceChildren(icon({ name: name.value, icon: currentIcon() }, 'lg'));
+    const chips = (row, table, keyName) => row.replaceChildren(...Object.entries(table).map(([k, v]) =>
+      h('button', { class: `pill${iconSpec && spec[keyName] === k ? ' on' : ''}`, onclick: () => { iconSpec = { ...spec, [keyName]: k }; picked = true; drawIcon(); } }, v.label)));
+    chips(poseRow, IconKit.POSES, 'pose');
+    chips(equipRow, IconKit.EQUIP, 'equip');
+  };
+  drawIcon();
   const saveBtn = h('button', { class: 'btn primary', disabled: !(ex && ex.name.trim()) }, 'Save');
-  name.addEventListener('input', () => { saveBtn.disabled = !name.value.trim(); });
+  name.addEventListener('input', () => { saveBtn.disabled = !name.value.trim(); if (!picked) drawIcon(); });
   saveBtn.addEventListener('click', () => {
     const data = { name: name.value.trim(), spec, image: isImage(image) ? image : '' };
+    if (!picked) iconSpec = IconKit.guess(data.name);
+    if (iconSpec) { data.icon = IconKit.url(iconSpec.pose, iconSpec.equip); data.iconSpec = iconSpec; }
     if (!data.name) return;
     if (ex) { Object.assign(ex, data); delete ex.details; } else state.exercises.push({ id: uid(), ...data });
     save();
@@ -1155,7 +1189,9 @@ function openExerciseForm(ex, afterSave) {
     field('Name', name),
     fieldDiv('What you track', blockEditor(spec)),
     ex && ex.details ? h('p', { class: 'hint' }, `Old details: ${ex.details}`) : null,
-    fieldDiv('Picture (optional)', h('div', {},
+    fieldDiv('Icon', h('div', { class: 'icon-builder' }, glyph,
+      h('div', { class: 'grow' }, h('div', { class: 'ilabel' }, 'Pose'), poseRow, h('div', { class: 'ilabel' }, 'Equipment'), equipRow))),
+    fieldDiv('Picture (optional, replaces the icon)', h('div', {},
       h('label', { class: 'pill' }, 'Choose photo', photo),
       h('div', { class: 'or' }, 'or paste a link'),
       link)),
