@@ -420,3 +420,12 @@ body.pad-open { padding-bottom: 320px; }
 /* Slightly bigger dates */
 .ddate { font-size: 17px; }
 .day.rest .ddate, .day.future .ddate { font-size: 15px; }
+
+/* Today tab */
+#today .day { border-top: 0; padding-top: 10px; }
+#today .day.today { box-shadow: none; background: none; }
+.lasttime { margin: 4px 0 0 38px; font-size: 12.5px; font-style: italic; color: var(--muted); }
+.lastday { margin: 18px 16px 24px; }
+.lastday .wbar { width: 100%; text-align: left; margin: 0; }
+.lastday .exs { padding: 6px 4px 0; }
+.today-slot span { font-style: normal; }

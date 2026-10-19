@@ -378,8 +378,8 @@ function renderReadOnlyEntry(entry) {
     h('div', { class: 'sets' }, entry.sets.map(doneSummary).filter(Boolean).map((t) => h('div', { class: 'set-text' }, t))),
     entry.details ? h('div', { class: 'edetails' }, entry.details) : null));
 }
-function renderEntry(key, entry) {
-  if (isLocked(key)) return renderReadOnlyEntry(entry);
+function renderEntry(key, entry, editable) {
+  if (!editable) return renderReadOnlyEntry(entry);
   const done = isDone(key, entry);
   const head = h('div', { class: 'ex-head' },
     icon(entry, 'sm'),
@@ -483,7 +483,7 @@ function swipeable(wrap, el, onRight) {
 }
 document.addEventListener('pointerdown', (e) => { if (openSwipe && !openSwipe.contains(e.target)) closeOpenSwipe(); }, true);
 
-function renderDay(key) {
+function renderDay(key, editable = false) {
   const date = dateOf(key);
   const day = getDay(key);
   const isToday = key === todayKey();
@@ -492,29 +492,36 @@ function renderDay(key) {
   const rest = isRestDay(key, day);
   const color = rest ? '' : dayColor(day);
   const past = isPast(key);
-  const locked = isLocked(key);
+  const locked = !editable;
   const named = day && day.name.trim();
-  const folded = past && entries.length > 0;
+  const folded = locked && (past || isToday) && entries.length > 0;
   const open = folded && expandedDays.has(key);
   const head = locked
     ? h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
-        named && !past ? h('span', { class: 'dayname static' }, day.name) : null)
+        isToday ? h('span', { class: 'tpill' }, 'Today') : null,
+        named && !folded && !past ? h('span', { class: 'dayname static' }, day.name) : null)
     : h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
         isToday ? h('span', { class: 'tpill' }, 'Today') : null,
         dayTypeButton(key, day));
   const toggle = () => { if (open) expandedDays.delete(key); else expandedDays.add(key); refreshDay(key); };
-  return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${locked && !past ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}${folded ? ' folded' : ''}${open ? ' open' : ''}`,
-    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: folded ? toggle : locked ? () => openDaySheet(key) : null },
+  return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${!past && !isToday ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}${folded ? ' folded' : ''}${open ? ' open' : ''}`,
+    style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: folded ? toggle : locked ? (isToday ? () => showView('today') : () => openDaySheet(key)) : null },
     head,
     past && !entries.length ? h('div', { class: 'empty-slot' }, h('span', {}, '☾ rest day')) : null,
+    isToday && locked && !entries.length ? h('div', { class: 'empty-slot today-slot' }, h('span', {}, 'tap to log today')) : null,
     folded ? h('div', { class: 'wbar' },
       h('span', { class: 'wtype' }, named ? day.name : 'Workout'),
       h('span', { class: 'wlist' }, open ? `${entries.length} exercise${entries.length > 1 ? 's' : ''}` : entries.map((e) => e.name).join(', ')),
       h('span', { class: 'wcaret' }, open ? '▴' : '▾')) : null,
-    entries.length && (!folded || open) ? h('div', { class: 'exs' }, entries.map((e) => renderEntry(key, e))) : null,
-    open ? h('button', { class: 'edit-day', onclick: (e) => { e.stopPropagation(); openDaySheet(key); } }, 'Edit day') : null,
+    entries.length && (!folded || open) ? h('div', { class: 'exs' }, entries.map((e) => {
+      const w = renderEntry(key, e, editable);
+      const lt = editable ? lastTimeLine(key, e) : null;
+      if (lt) w.lastChild.append(lt);
+      return w;
+    })) : null,
+    open ? h('button', { class: 'edit-day', onclick: (e) => { e.stopPropagation(); if (isToday) showView('today'); else openDaySheet(key); } }, isToday ? 'Open Today' : 'Edit day') : null,
     locked ? null : h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ add exercise'));
 }
 
@@ -578,11 +585,56 @@ function openDaySheet(key) {
 // After editing something on a past day, go back to that day's sheet instead of closing.
 const afterDayEdit = (key) => { save(); refreshDay(key); if (isLocked(key)) openDaySheet(key); else closeSheet(); };
 function refreshDay(key) {
-  if (padField && !padField.isConnected) closePad();
   keepAnchor(() => {
     const old = feedEl.querySelector(`[data-key="${key}"]`);
     if (old) old.replaceWith(renderDay(key));
   });
+  if (key === todayKey()) renderToday();
+  if (padField && !padField.isConnected) closePad();
+}
+
+// ---------- Today tab: today's workout (editable), last-time hints, and the last day of the same type ----------
+let lastDayOpen = false;
+function pastDaysDesc(before) {
+  return Object.keys(state.days).filter((k) => k < before).sort().reverse();
+}
+function lastTimeLine(key, entry) {
+  const type = ((getDay(key) || {}).name || '').trim().toLowerCase();
+  const same = (e) => e.exerciseId === entry.exerciseId || e.name.trim().toLowerCase() === entry.name.trim().toLowerCase();
+  const keys = pastDaysDesc(key);
+  const find = (typed) => {
+    for (const k of keys) {
+      const d = state.days[k];
+      if (typed && d.name.trim().toLowerCase() !== type) continue;
+      const e = d.entries.find(same);
+      if (e) return [k, e];
+    }
+    return null;
+  };
+  const hit = (type && find(true)) || find(false);
+  if (!hit) return null;
+  const text = hit[1].sets.map(doneSummary).filter(Boolean).join(', ');
+  if (!text) return null;
+  return h('div', { class: 'lasttime' }, `last · ${fmt(dateOf(hit[0]), { month: 'short', day: 'numeric' })}: ${text}`);
+}
+function lastDayBar(key) {
+  const name = ((getDay(key) || {}).name || '').trim();
+  const k = pastDaysDesc(key).find((x) => state.days[x].entries.length && (!name || state.days[x].name.trim().toLowerCase() === name.toLowerCase()));
+  if (!k) return null;
+  const d = state.days[k];
+  const color = dayColor(d);
+  return h('div', { class: `lastday${lastDayOpen ? ' open' : ''}`, style: color ? `--day:${color}` : null },
+    h('button', { class: 'wbar', onclick: () => { lastDayOpen = !lastDayOpen; renderToday(); } },
+      h('span', { class: 'wtype' }, name ? `Last ${d.name}` : `Last workout${d.name.trim() ? ` · ${d.name}` : ''}`),
+      h('span', { class: 'wlist' }, fmt(dateOf(k), { weekday: 'short', month: 'short', day: 'numeric' })),
+      h('span', { class: 'wcaret' }, lastDayOpen ? '▴' : '▾')),
+    lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null);
+}
+function renderToday() {
+  const root = document.getElementById('today');
+  if (!root) return;
+  const key = todayKey();
+  root.replaceChildren(renderDay(key, true), lastDayBar(key) || '');
 }
 
 function scrollToKey(key, smooth, alignEnd) {
@@ -596,7 +648,7 @@ function scrollToKey(key, smooth, alignEnd) {
     : alignEnd && fits ? r.bottom - bottom : r.top - top;
   window.scrollBy({ top: delta, behavior: smooth ? 'smooth' : 'auto' });
 }
-const scrollToToday = (smooth) => scrollToKey(todayKey(), smooth, 'center');
+const scrollToToday = (smooth) => { if (logActive()) scrollToKey(todayKey(), smooth, 'center'); };
 
 function jumpTo(key) {
   const d = dateOf(key);
@@ -604,6 +656,7 @@ function jumpTo(key) {
     rangeOldest = minDate(rangeOldest, monthStart(d));
     rangeNewest = maxDate(rangeNewest, monthEnd(d));
     renderFeed();
+    renderToday();
   }
   showView('log');
   requestAnimationFrame(() => scrollToKey(key, true, false));
@@ -848,7 +901,7 @@ function addToDay(key, ex) {
   if (isLocked(key)) { entry.done = true; refreshDay(key); openEntryEditor(key, entry.id); return; }
   closeSheet();
   refreshDay(key);
-  const blank = feedEl.querySelector(`[data-key="${key}"] .ex-wrap:last-child .nf`);
+  const blank = document.querySelector('#today .ex-wrap:last-child .nf');
   if (blank && !blank.textContent) openPad(blank);
 }
 
@@ -1204,6 +1257,7 @@ function replaceState(data) {
   applyTheme();
   initRange();
   renderFeed();
+  renderToday();
   renderExercises();
   renderProfile();
   requestAnimationFrame(() => scrollToToday(false));
@@ -1370,6 +1424,7 @@ document.addEventListener('visibilitychange', () => {
   lastTodayKey = todayKey();
   initRange();
   renderFeed();
+  renderToday();
   scrollToToday(false);
 });
 
@@ -1477,6 +1532,7 @@ seedStarters();
 applyTheme();
 initRange();
 renderFeed();
+renderToday();
 renderExercises();
 renderProfile();
 requestAnimationFrame(() => {
