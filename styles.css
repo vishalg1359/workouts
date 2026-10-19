@@ -543,3 +543,18 @@ html, body { min-height: 100%; }
 #today:not(.typed) .daybox { background: none; }
 #view-today .today-type { margin-right: 10px; }
 #today.typed .daybox { margin: 0 24px; }
+#today.typed .daybox { margin-top: 6px; }
+#today .daybox .add-ex { width: calc(100% - 20px); margin: 12px 10px 4px; }
+#today .lastday { margin: 18px 24px 14px; }
+/* This-week strip */
+.weekstrip { display: flex; justify-content: space-between; margin: 4px 26px 14px; }
+.wkd { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; background: none; }
+.wkd .wl { font-size: 11px; font-weight: 700; color: var(--muted); }
+.wkd .wk { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700;
+  color: var(--fg); background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.wkd.done .wk { background: var(--day); color: #fff; }
+.wkd.on .wk { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--fg) 45%, transparent); }
+.wkd.today .wk { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+.wkd.today .wl { color: var(--ink); }
+.wkd.future { opacity: 0.35; }
+.today-type .daytype.empty { font-size: 20px; }
