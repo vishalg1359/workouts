@@ -649,6 +649,8 @@ function lastDayBar(key) {
     lastDayOpen ? h('div', { class: 'exs' }, d.entries.map(renderReadOnlyEntry)) : null);
 }
 // ---------- Calendar month grid ----------
+const GRID_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9.5 10v10M14.5 10v10M3.5 15h17"/></svg>';
+const LIST_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1" class="fill"/><circle cx="4" cy="12" r="1" class="fill"/><circle cx="4" cy="18" r="1" class="fill"/></svg>';
 let calMode = 'list';
 let gridMonth = null;
 function renderMonthGrid() {
@@ -674,21 +676,35 @@ function renderMonthGrid() {
       name && !rest ? h('span', { class: 'mtype' }, name) : null,
       entries.length ? h('span', { class: 'mbars' }, entries.slice(0, 4).map(() => h('i')), entries.length > 4 ? h('b', {}, `+${entries.length - 4}`) : null) : null));
   }
+  monthStep = step;
+  logTitle.textContent = fmt(gridMonth, gridMonth.getFullYear() === today().getFullYear() ? { month: 'long' } : { month: 'short', year: 'numeric' });
   root.replaceChildren(
-    h('div', { class: 'mnav' },
-      h('button', { class: 'pill', 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'),
-      h('span', { class: 'mtitle' }, fmt(gridMonth, { month: 'long', year: 'numeric' })),
-      h('button', { class: 'pill', 'aria-label': 'Next month', onclick: () => step(1) }, '›')),
     h('div', { class: 'mgrid mdow' }, ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => h('span', {}, d))),
-    h('div', { class: 'mgrid' }, cells));
+    h('div', { class: 'mgrid mdays' }, cells));
+  sizeMonth();
 }
+let monthStep = () => {};
+function sizeMonth() {
+  const root = document.getElementById('month');
+  if (root.hidden) return;
+  const tab = document.querySelector('.tabbar').getBoundingClientRect().height;
+  const want = window.innerHeight - tab - document.querySelector('#view-log .topbar').offsetHeight;
+  root.style.height = `${Math.max(320, want)}px`;
+  const extra = document.documentElement.scrollHeight - window.innerHeight;
+  if (extra > 0) root.style.height = `${Math.max(320, want - extra)}px`;
+}
+window.addEventListener('resize', () => { if (calMode === 'grid') sizeMonth(); });
+document.getElementById('m-prev').addEventListener('click', () => monthStep(-1));
+document.getElementById('m-next').addEventListener('click', () => monthStep(1));
 function setCalMode(mode) {
   calMode = mode;
   const grid = mode === 'grid';
   document.getElementById('month').hidden = !grid;
   feedEl.hidden = grid;
-  document.getElementById('cal-toggle').textContent = grid ? 'List' : 'Month';
-  document.getElementById('log-title').textContent = grid ? 'Calendar' : document.getElementById('log-title').textContent;
+  document.getElementById('cal-toggle').innerHTML = grid ? LIST_ICON : GRID_ICON;
+  document.getElementById('cal-toggle').setAttribute('aria-label', grid ? 'List view' : 'Month view');
+  document.getElementById('m-prev').hidden = document.getElementById('m-next').hidden = !grid;
+  document.getElementById('view-log').classList.toggle('grid-mode', grid);
   if (grid) { gridMonth = null; renderMonthGrid(); window.scrollTo(0, 0); }
   else requestAnimationFrame(() => { scrollToToday(false); updateTitle(); });
 }
@@ -827,7 +843,7 @@ function updateTitle() {
 }
 let titleQueued = false;
 window.addEventListener('scroll', () => {
-  if (titleQueued || !logActive()) return;
+  if (titleQueued || !logActive() || calMode === 'grid') return;
   titleQueued = true;
   requestAnimationFrame(() => { titleQueued = false; updateTitle(); });
 }, { passive: true });
@@ -835,7 +851,10 @@ window.addEventListener('scroll', () => {
 document.getElementById('today-btn').addEventListener('click', () => { if (calMode === 'grid') { gridMonth = null; renderMonthGrid(); } });
 document.getElementById('today-btn').addEventListener('click', () => scrollToToday(true));
 const jumpInput = document.getElementById('jump-input');
-jumpInput.addEventListener('change', () => { if (jumpInput.value) jumpTo(jumpInput.value); });
+jumpInput.addEventListener('change', () => {
+  if (!jumpInput.value) return;
+  if (calMode === 'grid') { const d = dateOf(jumpInput.value); gridMonth = new Date(d.getFullYear(), d.getMonth(), 1); renderMonthGrid(); } else jumpTo(jumpInput.value);
+});
 jumpInput.addEventListener('focus', () => { if (!jumpInput.value) jumpInput.value = todayKey(); });
 
 // ---------- sheet ----------
