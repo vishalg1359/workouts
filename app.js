@@ -519,7 +519,6 @@ function renderDay(key, editable = false) {
         named && !folded && !past ? h('span', { class: 'dayname static' }, day.name) : null)
     : h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
-        isToday ? h('span', { class: 'tpill' }, 'Today') : null,
         dayTypeButton(key, day));
   const toggle = () => { if (open) expandedDays.delete(key); else expandedDays.add(key); refreshDay(key); };
   return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${!past && !isToday ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}${folded ? ' folded' : ''}${open ? ' open' : ''}`,
@@ -818,7 +817,7 @@ function scrollToKey(key, smooth, alignEnd) {
     : alignEnd && fits ? r.bottom - bottom : r.top - top;
   window.scrollBy({ top: delta, behavior: smooth ? 'smooth' : 'auto' });
 }
-const scrollToToday = (smooth) => { if (logActive() && calMode === 'list') scrollToKey(todayKey(), smooth, 'center'); };
+const scrollToToday = (smooth) => { if (logActive() && calMode === 'list' && Date.now() - (typeof jumpHold === 'number' ? jumpHold : 0) > 1500) scrollToKey(todayKey(), smooth, 'center'); };
 
 function jumpTo(key) {
   const d = dateOf(key);
@@ -828,9 +827,20 @@ function jumpTo(key) {
     renderFeed();
     renderToday();
   }
+  jumpHold = Date.now();
   showView('log');
-  requestAnimationFrame(() => scrollToKey(key, true, false));
+  requestAnimationFrame(() => scrollToKey(key, false, false));
+  setTimeout(() => { scrollToKey(key, false, false); updateTitle(); }, 450);
 }
+let jumpHold = 0;
+const jumpInput = document.getElementById('jump-input');
+jumpInput.addEventListener('focus', () => { jumpInput.value = calMode === 'grid' ? (currentGridMonth() || { key: todayKey() }).key : todayKey(); jumpHold = Date.now(); });
+jumpInput.addEventListener('change', () => {
+  const v = jumpInput.value;
+  if (!v) return;
+  jumpInput.blur();
+  if (calMode === 'grid') { renderMonthGrid(v); setTimeout(() => renderMonthGrid(v), 450); } else jumpTo(v);
+});
 
 const logActive = () => document.getElementById('view-log').classList.contains('active');
 function extendPast() {

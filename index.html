@@ -25,7 +25,9 @@
 
   <section id="view-log" class="view">
     <header class="topbar">
-      <h1 id="log-title">Log</h1>
+      <label class="title-jump"><h1 id="log-title">Log</h1><span class="caret">▾</span>
+        <input id="jump-input" type="date" aria-label="Go to date">
+      </label>
       <div class="topbar-actions">
         <button id="today-btn" class="ibtn" aria-label="Today"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" class="fill"/></svg></button>
         <button id="cal-toggle" class="ibtn" aria-label="Month view"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9.5 10v10M14.5 10v10M3.5 15h17"/></svg></button>
