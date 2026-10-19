@@ -182,37 +182,40 @@ function cleanupDay(key) {
   if (d && !d.name.trim() && d.entries.length === 0) delete state.days[key];
 }
 
-// ---------- log feed (oldest at top, newest at bottom) ----------
+// ---------- log feed (every day, oldest at top; loads forever both ways) ----------
 const feedEl = document.getElementById('feed');
-const feedStart = document.getElementById('feed-start');
-const expanded = new Set();
+const logTitle = document.getElementById('log-title');
 let rangeOldest;
 let rangeNewest;
+const monthStart = (d, n = 0) => new Date(d.getFullYear(), d.getMonth() + n, 1);
+const monthEnd = (d, n = 0) => new Date(d.getFullYear(), d.getMonth() + n + 1, 0);
+const MONTH_HUES = [[205, 250], [330, 10], [150, 190], [95, 140], [40, 85], [15, 45], [190, 230], [270, 320], [25, 55], [10, 35], [240, 280], [350, 30]];
 
-function loggedKeys() { return Object.keys(state.days).sort(); }
-function pastFloor() {
-  const ks = loggedKeys();
-  return addDays(minDate(ks.length ? dateOf(ks[0]) : today(), today()), -PAGE_DAYS);
-}
 function initRange() {
-  const ks = loggedKeys();
-  rangeNewest = addDays(maxDate(ks.length ? dateOf(ks[ks.length - 1]) : today(), today()), 14);
-  rangeOldest = maxDate(pastFloor(), addDays(today(), -PAGE_DAYS));
+  rangeOldest = monthStart(today(), -2);
+  rangeNewest = monthEnd(today(), 1);
 }
 
 const fmt = (d, o) => d.toLocaleDateString(undefined, o);
-function monthLabel(d) { return fmt(d, { month: 'long', year: 'numeric' }); }
+const isRestDay = (day) => day && !day.entries.length && /\brest\b/i.test(day.name);
 
-function renderCard(key) {
-  const date = dateOf(key);
-  const day = getDay(key);
-  const isToday = key === todayKey();
-  const nameInput = h('input', { class: 'dayname', value: day ? day.name : '', enterkeyhint: 'done', 'aria-label': 'Day name', ...NO_CAPS });
-  nameInput.addEventListener('input', () => { ensureDay(key).name = nameInput.value; save(); });
-  nameInput.addEventListener('blur', () => { cleanupDay(key); save(); });
-  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameInput.blur(); });
+function monthHeader(d) {
+  const [a, b] = MONTH_HUES[d.getMonth()];
+  return h('div', { class: 'mhead', style: `--h1:${a};--h2:${b}`, 'data-anchor': `m${keyOf(d)}`, 'data-month': keyOf(d) },
+    h('span', { class: 'mname' }, fmt(d, { month: 'long' })),
+    h('span', { class: 'myear' }, d.getFullYear()));
+}
 
-  const entries = (day ? day.entries : []).map((entry) => {
+function nameField(key, day) {
+  const input = h('input', { class: 'dayname', value: day ? day.name : '', enterkeyhint: 'done', 'aria-label': 'Day name', ...NO_CAPS });
+  input.addEventListener('input', () => { ensureDay(key).name = input.value; save(); });
+  input.addEventListener('blur', () => { cleanupDay(key); save(); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+  return input;
+}
+
+function renderEntries(key, day) {
+  return h('ul', { class: 'entries' }, day.entries.map((entry) => {
     entry.spec ||= [];
     return h('li', { class: 'entry' },
       icon(entry, 'lg'),
@@ -220,80 +223,79 @@ function renderCard(key) {
         h('button', { class: 'ename', onclick: () => openEntryEditor(key, entry.id) }, entry.name),
         entry.spec.length ? specInline(entry.spec, save) : null,
         entry.details ? h('div', { class: 'edetails' }, entry.details) : null));
-  });
-
-  return h('article', { class: `card${isToday ? ' today' : ''}`, 'data-anchor': key, 'data-key': key },
-    h('header', { class: 'card-head' },
-      h('div', { class: 'cdate' },
-        h('span', { class: 'dow' }, isToday ? 'Today' : fmt(date, { weekday: 'short' })),
-        h('span', { class: 'dnum' }, date.getDate())),
-      nameInput,
-      h('button', { class: 'chip', 'aria-label': 'Pick a day name', onclick: () => openPresetPicker(key) }, '▾')),
-    entries.length ? h('ul', { class: 'entries' }, entries) : null,
-    h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ Add exercise'));
+  }));
 }
 
-function renderRow(key) {
-  return h('div', { class: 'erow', 'data-anchor': key, 'data-key': key },
-    h('span', { class: 'erow-date' }, fmt(dateOf(key), { weekday: 'short', month: 'short', day: 'numeric' })),
-    h('button', { class: 'chip', 'aria-label': 'Name this day', onclick: () => openPresetPicker(key) }, '▾'),
-    h('button', { class: 'chip add', 'aria-label': 'Add exercise', onclick: () => openExercisePicker(key) }, '+'));
+function renderDay(key) {
+  const date = dateOf(key);
+  const day = getDay(key);
+  const isToday = key === todayKey();
+  const pick = h('button', { class: 'chip', 'aria-label': 'Pick a day name', onclick: () => openPresetPicker(key) }, '▾');
+  const add = h('button', { class: 'chip add', 'aria-label': 'Add exercise', onclick: () => openExercisePicker(key) }, '+');
+  let body;
+  if (isRestDay(day)) {
+    body = h('div', { class: 'rest' }, h('span', { class: 'rest-name' }, day.name), pick, add);
+  } else if (day || isToday) {
+    body = h('div', { class: `block${day && day.entries.length ? '' : ' empty'}` },
+      h('div', { class: 'block-head' }, nameField(key, day), pick),
+      day && day.entries.length ? renderEntries(key, day) : null,
+      h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ Add exercise'));
+  } else {
+    body = h('div', { class: 'blank' }, pick, add);
+  }
+  const weekStart = date.getDay() === 1;
+  return h('div', { class: `drow${isToday ? ' today' : ''}${weekStart ? ' week' : ''}`, 'data-anchor': key, 'data-key': key },
+    h('div', { class: 'dcol' },
+      h('span', { class: 'dow' }, fmt(date, { weekday: 'short' })),
+      h('span', { class: 'dnum' }, date.getDate())),
+    body);
 }
 
-function renderGap(from, to) {
-  const n = Math.round((to - from) / 864e5) + 1;
-  const label = n === 1 ? fmt(from, { weekday: 'short', month: 'short', day: 'numeric' })
-    : `${fmt(from, { month: 'short', day: 'numeric' })} – ${to.getDate()}`;
-  const note = from > today() ? 'nothing planned' : 'nothing logged';
-  return h('button', { class: 'gap', 'data-anchor': keyOf(from), onclick: () => {
-    for (let d = from; d <= to; d = addDays(d, 1)) expanded.add(keyOf(d));
-    refreshFeed();
-  } }, h('span', { class: 'gap-dates' }, label), h('span', { class: 'gap-note' }, n === 1 ? note : `${n} days · ${note}`));
+function renderRange(from, to) {
+  const frag = document.createDocumentFragment();
+  for (let d = from; d <= to; d = addDays(d, 1)) {
+    if (d.getDate() === 1) frag.append(monthHeader(d));
+    frag.append(renderDay(keyOf(d)));
+  }
+  return frag;
 }
 
 function renderFeed() {
-  const frag = document.createDocumentFragment();
-  const tk = todayKey();
-  let month = null;
-  let gap = null;
-  const flush = () => { if (gap) { frag.append(renderGap(gap.from, gap.to)); gap = null; } };
-  for (let d = rangeOldest; d <= rangeNewest; d = addDays(d, 1)) {
-    const m = d.getFullYear() * 12 + d.getMonth();
-    if (m !== month) { flush(); frag.append(h('div', { class: 'month' }, monthLabel(d))); month = m; }
-    const key = keyOf(d);
-    if (getDay(key) || key === tk) { flush(); frag.append(renderCard(key)); }
-    else if (expanded.has(key)) { flush(); frag.append(renderRow(key)); }
-    else if (gap) gap.to = d;
-    else gap = { from: d, to: d };
-  }
-  flush();
-  frag.append(h('button', { class: 'more', onclick: () => { rangeNewest = addDays(rangeNewest, 30); refreshFeed(); } }, 'Show more days ahead'));
-  feedEl.replaceChildren(frag);
-  feedStart.hidden = rangeOldest > pastFloor();
+  feedEl.replaceChildren(renderRange(rangeOldest, rangeNewest));
+  updateTitle();
 }
 
 const topInset = () => document.querySelector('#view-log .topbar').getBoundingClientRect().bottom;
 const bottomInset = () => document.querySelector('.tabbar').getBoundingClientRect().top;
 
-// Re-render while keeping whatever is on screen in the same place.
-function refreshFeed() {
+// Run a DOM change while keeping whatever is on screen in the same place.
+function keepAnchor(fn) {
   const top = topInset();
   let anchor = null;
   let offset = 0;
-  for (const el of feedEl.querySelectorAll('[data-anchor]')) {
-    const r = el.getBoundingClientRect();
-    if (r.bottom > top) { anchor = el.dataset.anchor; offset = r.top; break; }
+  let el0 = null;
+  for (let y = top + 4; !el0 && y < top + 120; y += 20) {
+    const hit = document.elementFromPoint(40, y);
+    el0 = hit && hit.closest('[data-anchor]');
   }
-  renderFeed();
+  if (el0) { anchor = el0.dataset.anchor; offset = el0.getBoundingClientRect().top; }
+  fn();
   const el = anchor && feedEl.querySelector(`[data-anchor="${anchor}"]`);
   if (el) window.scrollBy(0, el.getBoundingClientRect().top - offset);
+}
+
+function refreshDay(key) {
+  keepAnchor(() => {
+    const old = feedEl.querySelector(`[data-key="${key}"]`);
+    if (old) old.replaceWith(renderDay(key));
+  });
 }
 
 function scrollToKey(key, smooth, alignEnd) {
   const el = feedEl.querySelector(`[data-key="${key}"]`);
   if (!el) return;
-  const top = topInset() + 36;
-  const bottom = bottomInset() - 12;
+  const top = topInset() + 8;
+  const bottom = bottomInset() - 8;
   const r = el.getBoundingClientRect();
   const delta = alignEnd && r.height <= bottom - top ? r.bottom - bottom : r.top - top;
   window.scrollBy({ top: delta, behavior: smooth ? 'smooth' : 'auto' });
@@ -302,24 +304,44 @@ const scrollToToday = (smooth) => scrollToKey(todayKey(), smooth, true);
 
 function jumpTo(key) {
   const d = dateOf(key);
-  if (d < rangeOldest) rangeOldest = addDays(d, -7);
-  if (d > rangeNewest) rangeNewest = addDays(d, 14);
-  expanded.add(key);
-  renderFeed();
+  if (d < rangeOldest || d > rangeNewest) {
+    rangeOldest = minDate(rangeOldest, monthStart(d));
+    rangeNewest = maxDate(rangeNewest, monthEnd(d));
+    renderFeed();
+  }
   showView('log');
   requestAnimationFrame(() => scrollToKey(key, true, false));
 }
 
-const topSentinel = document.getElementById('top-sentinel');
+const logActive = () => document.getElementById('view-log').classList.contains('active');
 function extendPast() {
-  const floor = pastFloor();
-  if (rangeOldest <= floor) return;
-  rangeOldest = maxDate(floor, addDays(rangeOldest, -PAGE_DAYS));
-  refreshFeed();
-  requestAnimationFrame(() => {
-    if (document.getElementById('view-log').classList.contains('active') && topSentinel.getBoundingClientRect().bottom > -800) extendPast();
-  });
+  const from = monthStart(rangeOldest, -2);
+  const to = addDays(rangeOldest, -1);
+  rangeOldest = from;
+  keepAnchor(() => feedEl.prepend(renderRange(from, to)));
 }
+function extendFuture() {
+  const from = addDays(rangeNewest, 1);
+  rangeNewest = monthEnd(rangeNewest, 2);
+  feedEl.append(renderRange(from, rangeNewest));
+}
+
+function updateTitle() {
+  let el = null;
+  for (let y = topInset() + 4; !el && y < topInset() + 120; y += 20) {
+    const hit = document.elementFromPoint(40, y);
+    el = hit && hit.closest('[data-key],[data-month]');
+  }
+  if (!el && logTitle.textContent !== 'Log') return;
+  const d = el ? dateOf(el.dataset.key || el.dataset.month) : today();
+  logTitle.textContent = d.getFullYear() === today().getFullYear() ? fmt(d, { month: 'long' }) : fmt(d, { month: 'short', year: 'numeric' });
+}
+let titleQueued = false;
+window.addEventListener('scroll', () => {
+  if (titleQueued || !logActive()) return;
+  titleQueued = true;
+  requestAnimationFrame(() => { titleQueued = false; updateTitle(); });
+}, { passive: true });
 
 document.getElementById('today-btn').addEventListener('click', () => scrollToToday(true));
 const jumpInput = document.getElementById('jump-input');
@@ -352,7 +374,7 @@ function openPresetPicker(key) {
     cleanupDay(key);
     save();
     closeSheet();
-    refreshFeed();
+    refreshDay(key);
   };
   const list = h('div', {});
   const draw = () => {
@@ -410,10 +432,9 @@ function addToDay(key, ex) {
   const entry = { id: uid(), exerciseId: ex.id, name: ex.name, image: ex.image || '', spec: cloneSpec(ex.spec) };
   if (ex.details) entry.details = ex.details;
   ensureDay(key).entries.push(entry);
-  expanded.add(key);
   save();
   closeSheet();
-  refreshFeed();
+  refreshDay(key);
   const blank = feedEl.querySelector(`[data-key="${key}"] .entry:last-child .val`);
   if (blank && !blank.value) blank.focus({ preventScroll: true });
 }
@@ -427,7 +448,7 @@ function openEntryEditor(key, id) {
   const entry = day.entries[idx];
   const name = h('input', { value: entry.name, ...NO_CAPS });
   const spec = cloneSpec(entry.spec);
-  const done = () => { save(); closeSheet(); refreshFeed(); };
+  const done = () => { save(); closeSheet(); refreshDay(key); };
   const move = (delta) => {
     const j = idx + delta;
     if (j < 0 || j >= day.entries.length) return;
@@ -668,9 +689,12 @@ renderExercises();
 renderProfile();
 requestAnimationFrame(() => {
   scrollToToday(false);
-  new IntersectionObserver((items) => {
-    if (items.some((i) => i.isIntersecting) && document.getElementById('view-log').classList.contains('active')) extendPast();
-  }, { rootMargin: '800px 0px 0px 0px' }).observe(topSentinel);
+  updateTitle();
+  const watch = (id, fn) => new IntersectionObserver((items) => {
+    if (items.some((i) => i.isIntersecting) && logActive()) fn();
+  }, { rootMargin: '1200px 0px' }).observe(document.getElementById(id));
+  watch('top-sentinel', extendPast);
+  watch('bottom-sentinel', extendFuture);
 });
 if ('serviceWorker' in navigator) {
   const hadController = !!navigator.serviceWorker.controller;
