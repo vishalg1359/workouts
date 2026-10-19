@@ -733,23 +733,34 @@ function sortedExercises() {
   return state.exercises.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
 
-// Recency-weighted use count: each past use counts 0.5^(days ago / 21), so your current routine floats up.
-function usageScores() {
-  const scores = new Map();
+// Recency-weighted use: each use counts 0.5^(days ago / 21); unfinished entries count less.
+// `typed` only counts days with the given day type, so same-type exercises can be ranked first.
+function usageScores(type) {
+  const all = new Map();
+  const typed = new Map();
   const t = today().getTime();
   for (const [k, d] of Object.entries(state.days)) {
     const ago = (t - dateOf(k).getTime()) / 86400000;
     if (ago < 0) continue;
     const w = Math.pow(0.5, ago / 21);
-    for (const e of d.entries) scores.set(e.exerciseId, (scores.get(e.exerciseId) || 0) + w);
+    const sameType = type && d.name.trim().toLowerCase() === type;
+    for (const e of d.entries) {
+      const v = w * (isDone(k, e) ? 1 : 0.4);
+      all.set(e.exerciseId, (all.get(e.exerciseId) || 0) + v);
+      if (sameType) typed.set(e.exerciseId, (typed.get(e.exerciseId) || 0) + v);
+    }
   }
-  return scores;
+  return { all, typed };
 }
-function pickerOrder() {
-  const scores = usageScores();
+// Tier 0: done on this day type; tier 1: done before; tier 2: never done (most common first).
+function pickerOrder(key) {
+  const day = getDay(key);
+  const { all, typed } = usageScores(day && day.name.trim().toLowerCase());
   const rank = (ex) => (STARTER_RANK.has(ex.name.trim().toLowerCase()) ? STARTER_RANK.get(ex.name.trim().toLowerCase()) : -1);
-  return state.exercises.slice().sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0) || rank(a) - rank(b) || a.name.localeCompare(b.name))
-    .map((ex) => ({ ex, used: scores.has(ex.id) }));
+  const tier = (ex) => (typed.has(ex.id) ? 0 : all.has(ex.id) ? 1 : 2);
+  return state.exercises.map((ex) => ({ ex, tier: tier(ex) }))
+    .sort((a, b) => a.tier - b.tier || (typed.get(b.ex.id) || 0) - (typed.get(a.ex.id) || 0)
+      || (all.get(b.ex.id) || 0) - (all.get(a.ex.id) || 0) || rank(a.ex) - rank(b.ex) || a.ex.name.localeCompare(b.ex.name));
 }
 function matches(ex, q) { return !q || ex.name.toLowerCase().includes(q); }
 
@@ -760,11 +771,13 @@ function openExercisePicker(key) {
     const q = search.value.trim().toLowerCase();
     list.textContent = '';
     if (!state.exercises.length) list.append(h('p', { class: 'empty' }, 'No exercises yet.'));
-    let items = pickerOrder().filter(({ ex }) => matches(ex, q));
+    let items = pickerOrder(key).filter(({ ex }) => matches(ex, q));
+    const dayName = (getDay(key) || { name: '' }).name.trim();
+    const labels = [`For ${dayName}`, 'Your exercises', 'All exercises'];
     if (q) items = items.filter(({ ex }) => ex.name.toLowerCase().startsWith(q)).concat(items.filter(({ ex }) => !ex.name.toLowerCase().startsWith(q)));
     let section = null;
-    for (const { ex, used } of items) {
-      const label = q ? null : used ? 'Your exercises' : 'All exercises';
+    for (const { ex, tier } of items) {
+      const label = q ? null : labels[tier];
       if (label && label !== section) { section = label; list.append(h('div', { class: 'psec' }, label)); }
       list.append(h('div', { class: 'choice', onclick: () => addToDay(key, ex) }, icon(ex), h('div', { class: 'grow' }, exerciseText(ex))));
     }
