@@ -978,7 +978,7 @@ function numInput(value, suffix, onInput) {
   return h('span', { class: 'numwrap' }, inp, h('span', { class: 'suffix' }, suffix));
 }
 
-const PALETTES = [['Blue', '#1e40af'], ['Navy', '#1e3a8a'], ['Red', '#b91c1c'], ['Orange', '#ea580c'], ['Teal', '#0f766e'], ['Forest', '#166534'], ['Grape', '#6d28d9']];
+const PALETTES = [['Blue', '#1e40af'], ['Red', '#b91c1c'], ['Orange', '#ea580c'], ['Green', '#15803d'], ['Teal', '#0f766e'], ['Purple', '#6d28d9']];
 function colorPicker(p) {
   const swatches = PALETTES.map(([name, a]) => h('button', {
     class: `swatch${p.accent === a ? ' on' : ''}`, 'aria-label': name, title: name, style: `background: ${a}`,
@@ -986,8 +986,9 @@ function colorPicker(p) {
   const custom = h('input', { type: 'color', value: p.accent, 'aria-label': 'Custom color' });
   custom.addEventListener('input', () => { p.accent = custom.value; save(); applyTheme(); });
   custom.addEventListener('change', renderProfile);
-  return h('div', { class: 'colors' }, h('div', { class: 'swatches' }, swatches),
-    h('div', { class: 'pair' }, h('label', { class: 'cpick' }, custom, 'Custom')));
+  const isCustom = !PALETTES.some(([, a]) => a === p.accent);
+  return h('div', { class: 'colors one-row' }, swatches,
+    h('label', { class: `swatch custom${isCustom ? ' on' : ''}`, title: 'Custom', style: isCustom ? `background: ${p.accent}` : null }, custom));
 }
 function renderProfile() {
   const p = state.profile;
