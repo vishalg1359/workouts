@@ -32,4 +32,4 @@ The app opens full screen and works offline from then on. It doesn't expire and 
 | `manifest.webmanifest`, `*.png` | Home-screen name and icons |
 
 ## Updating
-Push changes to `main`. GitHub Pages redeploys automatically, and the app picks up the update the next time it opens online. When you change files, bump `CACHE` in `sw.js` (e.g. `workouts-v2`).
+Push changes to `main`. GitHub Pages redeploys automatically, and the app picks up the update the next time it opens online. The service worker fetches fresh files whenever the phone is online and falls back to its saved copy when offline.
