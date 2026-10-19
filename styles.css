@@ -529,12 +529,11 @@ html, body { min-height: 100%; }
 .build-icon { margin-top: 4px; }
 .icon-builder[hidden], .build-icon[hidden] { display: none; }
 
-/* Today top: centered title (+ date subheader), day type under it */
-#view-today .topbar { flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
-.day-title { display: flex; flex-direction: column; align-items: center; }
-.day-title .dt-sub { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-top: 2px; }
-.today-type { max-width: 92%; justify-content: center; }
-.today-type .daytype { font-size: 22px; font-weight: 800; justify-content: center; }
+/* Today top: title and day type on one line, same size */
+#view-today .topbar { gap: 12px; }
+.day-title { font-size: 26px; white-space: nowrap; }
+.today-type .daytype { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.today-type .daytype .caret { font-size: 14px; }
 #today .daybox .dhead { display: none; }
 .daypop { scrollbar-width: none; }
 .daypop::-webkit-scrollbar { display: none; }

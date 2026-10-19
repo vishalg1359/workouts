@@ -768,7 +768,7 @@ function openDayPicker() {
   list.addEventListener('scroll', () => { if (list.scrollTop + list.clientHeight > list.scrollHeight - 80) addDays(30); }, { passive: true });
   const r = title.getBoundingClientRect();
   list.style.top = `${r.bottom + 6}px`;
-  list.style.left = `${Math.max(10, Math.min(innerWidth - 250, r.left + r.width / 2 - 120))}px`;
+  list.style.left = `${Math.max(10, r.left - 4)}px`;
   document.body.append(list);
   dayPop = list;
 }
@@ -800,10 +800,8 @@ function renderToday() {
   if (!root) return;
   const key = dayViewKey();
   const isT = key === todayKey();
-  const full = fmt(dateOf(key), { weekday: 'long', month: 'long', day: 'numeric' });
-  document.getElementById('day-title').replaceChildren(
-    h('span', { class: 'dt-main' }, isT ? 'Today' : full, h('span', { class: 'caret' }, ' ▾')),
-    ...(isT ? [h('span', { class: 'dt-sub' }, full)] : []));
+  const short = fmt(dateOf(key), { weekday: 'short', month: 'short', day: 'numeric' });
+  document.getElementById('day-title').replaceChildren(isT ? 'Today' : short, h('span', { class: 'caret' }, ' ▾'));
   const last = lastDayBar(key);
   root.classList.toggle('with-last', !!last);
   root.replaceChildren(renderDay(key, true), last || '');
