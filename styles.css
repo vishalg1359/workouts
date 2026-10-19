@@ -63,7 +63,7 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 65%, black));
 }
 .mhead::before, .mhead::after { content: ''; position: absolute; border-radius: 50%; }
-.mhead::before { width: 130px; height: 130px; right: -34px; top: -50px; background: var(--pop); opacity: 0.9; }
+.mhead::before { width: 130px; height: 130px; right: -34px; top: -50px; background: rgba(255, 255, 255, 0.16); }
 .mhead::after { width: 56px; height: 56px; right: 92px; bottom: -32px; background: rgba(255, 255, 255, 0.14); }
 .mname { position: relative; font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
 .myear { position: relative; font-size: 14px; font-weight: 700; opacity: 0.85; margin-right: 6px; }

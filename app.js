@@ -3,7 +3,7 @@
 const STORE_KEY = 'workouts.v1';
 const DEFAULT_PRESETS = ['Upper Day', 'Lower Day', 'Push Day', 'Pull Day', 'Leg Day', 'Mobility Day'];
 const DEFAULT_PRESET_COLORS = { 'upper day': '#2563eb', 'lower day': '#16a34a', 'push day': '#dc2626', 'pull day': '#7c3aed', 'leg day': '#d97706', 'mobility day': '#0d9488' };
-const DEFAULT_PROFILE = { name: '', birthday: '', units: 'imperial', heightCm: null, weightKg: null, theme: 'auto', accent: '#1e40af', pop: '#f97316' };
+const DEFAULT_PROFILE = { name: '', birthday: '', units: 'imperial', heightCm: null, weightKg: null, theme: 'auto', accent: '#1e40af' };
 const UNITS = ['sets', 'reps', 'lb', 'kg', 'sec', 'min', 'hr', 'mi', 'km', 'm', 'rounds', 'cal'];
 const JOINS = ['×', 'at', 'for', 'in', '@', 'of', '+', '−', '/'];
 const PREFIX_UNITS = new Set(['level']);
@@ -952,7 +952,6 @@ exSearch.addEventListener('input', renderExercises);
 function applyTheme() {
   const t = state.profile.theme;
   document.documentElement.style.setProperty('--accent', state.profile.accent);
-  document.documentElement.style.setProperty('--pop', state.profile.pop);
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
 }
@@ -979,21 +978,16 @@ function numInput(value, suffix, onInput) {
   return h('span', { class: 'numwrap' }, inp, h('span', { class: 'suffix' }, suffix));
 }
 
-const PALETTES = [['Ocean', '#1e40af', '#f97316'], ['Navy & Red', '#1e3a8a', '#dc2626'], ['Ember', '#b91c1c', '#f59e0b'], ['Orange', '#ea580c', '#1d4ed8'], ['Forest', '#166534', '#f59e0b'], ['Grape', '#6d28d9', '#f43f5e']];
+const PALETTES = [['Blue', '#1e40af'], ['Navy', '#1e3a8a'], ['Red', '#b91c1c'], ['Orange', '#ea580c'], ['Teal', '#0f766e'], ['Forest', '#166534'], ['Grape', '#6d28d9']];
 function colorPicker(p) {
-  const swatches = PALETTES.map(([name, a, b]) => h('button', {
-    class: `swatch${p.accent === a && p.pop === b ? ' on' : ''}`, 'aria-label': name, title: name,
-    style: `background: linear-gradient(135deg, ${a} 50%, ${b} 50%)`,
-    onclick: () => { p.accent = a; p.pop = b; save(); applyTheme(); renderProfile(); } }));
-  const custom = (prop, label) => {
-    const inp = h('input', { type: 'color', value: p[prop], 'aria-label': label });
-    inp.addEventListener('input', () => { p[prop] = inp.value; save(); applyTheme(); });
-    inp.addEventListener('change', renderProfile);
-    return inp;
-  };
+  const swatches = PALETTES.map(([name, a]) => h('button', {
+    class: `swatch${p.accent === a ? ' on' : ''}`, 'aria-label': name, title: name, style: `background: ${a}`,
+    onclick: () => { p.accent = a; save(); applyTheme(); renderProfile(); } }));
+  const custom = h('input', { type: 'color', value: p.accent, 'aria-label': 'Custom color' });
+  custom.addEventListener('input', () => { p.accent = custom.value; save(); applyTheme(); });
+  custom.addEventListener('change', renderProfile);
   return h('div', { class: 'colors' }, h('div', { class: 'swatches' }, swatches),
-    h('div', { class: 'pair' }, h('label', { class: 'cpick' }, custom('accent', 'Main color'), 'Main'),
-      h('label', { class: 'cpick' }, custom('pop', 'Highlight color'), 'Highlight')));
+    h('div', { class: 'pair' }, h('label', { class: 'cpick' }, custom, 'Custom')));
 }
 function renderProfile() {
   const p = state.profile;
@@ -1278,11 +1272,19 @@ function openPad(field) {
   padLabel.textContent = field._block.unit || '';
   numPad.hidden = false;
   document.body.classList.add('pad-open');
+  // Fit the whole day (date to last exercise) between the top bar and the pad; if it's too tall, fit this exercise; else this field.
   requestAnimationFrame(() => {
-    const r = field.getBoundingClientRect();
-    const limit = numPad.getBoundingClientRect().top - 16;
-    if (r.bottom > limit) window.scrollBy({ top: r.bottom - limit, behavior: 'smooth' });
-    else if (r.top < topInset() + 8) window.scrollBy({ top: r.top - topInset() - 8, behavior: 'smooth' });
+    const top = topInset() + 8;
+    const bottom = numPad.getBoundingClientRect().top - 12;
+    const fr = field.getBoundingClientRect();
+    const day = field.closest('.day');
+    const ex = field.closest('.ex-wrap');
+    const candidates = [day && day.getBoundingClientRect(), ex && ex.getBoundingClientRect(), fr].filter(Boolean);
+    const box = candidates.find((r) => r.height <= bottom - top && r.top <= fr.top && r.bottom >= fr.bottom) || fr;
+    let delta = 0;
+    if (box.bottom > bottom) delta = box.bottom - bottom;
+    if (box.top - delta < top) delta = box.top - top;
+    if (Math.abs(delta) > 1) window.scrollBy({ top: delta, behavior: 'smooth' });
   });
 }
 function closePad() {
