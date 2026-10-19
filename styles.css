@@ -442,7 +442,8 @@ html, body { min-height: 100%; }
 /* Last workout sits at the bottom of the screen; opening it lengthens the page downward. */
 #view-today.active { display: flex; flex-direction: column; }
 #today { flex: 1; display: flex; flex-direction: column; }
-#today .lastday { margin-top: auto; }
+#today .daybox { box-sizing: border-box; margin: 0 12px; border-radius: 14px; background: var(--card); padding-bottom: 6px; }
+#today .lastday { margin: 18px 12px 14px; }
 .day-title { font-size: 28px; font-weight: 800; color: var(--fg); padding: 0; letter-spacing: -0.02em; }
 .day-title .caret { font-size: 16px; color: var(--muted); }
 #day-next:disabled { opacity: 0.3; }

@@ -739,6 +739,27 @@ function openDayPicker() {
 document.getElementById('day-title').addEventListener('click', openDayPicker);
 document.getElementById('day-prev').addEventListener('click', () => shiftViewDay(-1));
 document.getElementById('day-next').addEventListener('click', () => shiftViewDay(1));
+// Today's box reaches down so the last-workout bar rests just above the tab bar; opening it only grows the page downward.
+function sizeTodayBox() {
+  const root = document.getElementById('today');
+  const box = root && root.firstElementChild;
+  if (!box) return;
+  box.classList.add('daybox');
+  box.style.minHeight = '';
+  const bar = root.querySelector('.lastday .wbar');
+  if (!bar) return;
+  const tab = document.querySelector('.tabbar').getBoundingClientRect().height;
+  const top = box.getBoundingClientRect().top + window.scrollY;
+  const room = window.innerHeight - tab - bar.offsetHeight - 18 - 14 - top;
+  if (room <= 0) return;
+  box.style.minHeight = `${room}px`;
+  const exs = root.querySelector('.lastday .exs');
+  if (exs) exs.hidden = true;
+  const extra = document.documentElement.scrollHeight - window.innerHeight;
+  if (exs) exs.hidden = false;
+  if (extra > 0) box.style.minHeight = `${Math.max(0, room - extra)}px`;
+}
+window.addEventListener('resize', () => { if (todayTabActive() && !document.body.classList.contains('pad-open')) sizeTodayBox(); });
 function renderToday() {
   const root = document.getElementById('today');
   if (!root) return;
@@ -748,6 +769,7 @@ function renderToday() {
   const last = lastDayBar(key);
   root.classList.toggle('with-last', !!last);
   root.replaceChildren(renderDay(key, true), last || '');
+  sizeTodayBox();
 }
 
 function scrollToKey(key, smooth, alignEnd) {
