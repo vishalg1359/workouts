@@ -826,10 +826,20 @@ function syncWelcome() {
   if (!empty) { if (cur) cur.remove(); return; }
   if (cur) return;
   const glyph = document.querySelector('.tab[data-view="exercises"] svg');
+  const lastK = pastDaysDesc(key).find((x) => state.days[x].entries.length);
+  const lastColor = lastK ? dayColor(state.days[lastK]) : '';
   root.firstElementChild.after(h('div', { class: 'welcome' },
     glyph ? h('div', { class: 'wglyph' }, glyph.cloneNode(true)) : null,
     h('h2', {}, 'Welcome to Workouts'),
-    h('p', {}, 'Pick a day type up top or add an exercise to get started.')));
+    lastK ? h('p', {}, 'Your last workout was ', h('b', { style: lastColor ? `color:${lastColor}` : null }, state.days[lastK].name.trim() || 'a workout'),
+      ` · ${fmt(dateOf(lastK), { weekday: 'short', month: 'short', day: 'numeric' })}`) : null,
+    h('p', { class: 'wask' }, 'What are you doing today?'),
+    h('div', { class: 'wpicks' },
+      state.presets.map((p) => {
+        const c = state.presetColors[p.trim().toLowerCase()];
+        return h('button', { class: 'wpick', style: c ? `--day:${c}` : null, onclick: () => { ensureDay(key).name = p; cleanupDay(key); afterDayEdit(key); } }, p);
+      }),
+      h('button', { class: 'wpick more', onclick: () => openPresetPicker(key) }, 'Other…'))));
 }
 function renderTodayType() {
   const slot = document.getElementById('today-type');
