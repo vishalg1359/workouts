@@ -789,7 +789,20 @@ window.addEventListener('load', resizeToday);
 window.addEventListener('pageshow', resizeToday);
 if (window.visualViewport) visualViewport.addEventListener('resize', resizeToday);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(resizeToday);
-[100, 400, 1000, 2000].forEach((ms) => setTimeout(resizeToday, ms));
+// Launched from the home screen, iOS can start the layout a status-bar short (a gap under the
+// tabs) until the page scrolls once, which is why Calendar -> Today fixed it. Do that scroll invisibly.
+function fixLaunchViewport() {
+  if (!navigator.standalone || window.scrollY > 2 || window.innerWidth > window.innerHeight) return;
+  if (window.innerHeight >= screen.height - 1) return;
+  const b = document.body, prev = b.style.minHeight;
+  b.style.minHeight = `${screen.height + 4}px`;
+  window.scrollTo(0, 2);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    window.scrollTo(0, 0); b.style.minHeight = prev; resizeToday();
+  }));
+}
+[0, 100, 400, 1000, 2000].forEach((ms) => setTimeout(() => { fixLaunchViewport(); resizeToday(); }, ms));
+window.addEventListener('pageshow', fixLaunchViewport);
 function renderToday() {
   const root = document.getElementById('today');
   if (!root) return;
