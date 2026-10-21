@@ -1326,7 +1326,9 @@ function exerciseLogs(ex) {
 function setParts(spec) {
   const w = weightUnit();
   const out = { sets: 1, reps: null, weight: null, units: {} };
+  let weightField = false;
   spec.forEach((b) => {
+    if (WEIGHT_UNITS.has(b.unit)) weightField = true;
     const n = numOf(b);
     if (n == null) return;
     if (b.unit === 'sets') out.sets = n;
@@ -1334,8 +1336,13 @@ function setParts(spec) {
     else if (WEIGHT_UNITS.has(b.unit)) {
       const v = b.unit === w ? n : w === 'lb' ? n * 2.20462 : n / 2.20462;
       out.weight = Math.round((b.join === '−' ? -v : v) * 10) / 10;
+      out.added = b.join === '+' || b.join === '−';
     } else out.units[b.unit] = n;
   });
+  if (out.weight == null && weightField && out.reps != null) {
+    out.weight = 0;
+    out.added = spec.some((b) => WEIGHT_UNITS.has(b.unit) && (b.join === '+' || b.join === '−'));
+  }
   return out;
 }
 function historyMetrics(logs) {
@@ -1347,7 +1354,11 @@ function historyMetrics(logs) {
   if (has((s) => s.weight != null)) {
     metrics.push({ id: 'weight', label: 'Weight', unit: w, pts: series((ss) => { const v = ss.map((s) => s.weight).filter((x) => x != null); return v.length ? Math.max(...v) : null; }) });
     if (has((s) => s.reps != null && s.weight != null)) {
-      metrics.push({ id: 'volume', label: 'Volume', unit: w, pts: series((ss) => { const v = ss.filter((s) => s.reps != null && s.weight != null && s.weight > 0); return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.reps * s.weight, 0)) : null; }) });
+      // Bodyweight lifts (+/− weight) count your profile weight plus what you added.
+      const kg = state.profile.weightKg;
+      const bw = kg == null ? null : w === 'lb' ? kg * 2.20462 : kg;
+      const load = (s) => (s.added ? (bw == null ? null : bw + s.weight) : s.weight);
+      metrics.push({ id: 'volume', label: 'Volume', unit: w, pts: series((ss) => { const v = ss.filter((s) => s.reps != null && s.weight != null && load(s) > 0); return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.reps * load(s), 0)) : null; }) });
     }
   }
   if (has((s) => s.reps != null)) {
@@ -1406,15 +1417,26 @@ function historyChart(metric, onPick) {
 function defaultMetric(metrics) {
   return (metrics.find((m) => m.id === 'weight') || metrics.find((m) => m.id === 'reps') || metrics.find((m) => m.id === 'u:min') || metrics[0] || {}).id;
 }
+const HISTORY_RANGES = [['1m', '1M', 1], ['3m', '3M', 3], ['6m', '6M', 6], ['1y', '1Y', 12], ['all', 'All', 0]];
+let historyRange = 'all';
+function rangeStart(id) {
+  const r = HISTORY_RANGES.find((x) => x[0] === id);
+  if (!r || !r[2]) return '';
+  const d = today();
+  d.setMonth(d.getMonth() - r[2]);
+  return keyOf(d);
+}
 function openHistory(ex) {
   const logs = exerciseLogs(ex);
-  const metrics = historyMetrics(logs);
+  const allMetrics = historyMetrics(logs);
+  let metrics = allMetrics;
   let current = defaultMetric(metrics);
+  const ranges = h('div', { class: 'hranges' });
   const chartWrap = h('div', { class: 'hchart-wrap' });
   const readout = h('div', { class: 'hreadout' });
   const chips = h('div', { class: 'hchips' });
   const rows = h('div', {});
-  const show = (m, v) => (m.id === 'weight' && v < 0 ? `assist ${-v} ${m.unit}` : `${v} ${m.unit}`);
+  const show = (m, v) => (m.id === 'weight' && v < 0 ? `assist ${-v} ${m.unit}` : m.id === 'weight' && v === 0 ? 'bodyweight' : `${v} ${m.unit}`);
   const pick = (p) => {
     const m = metrics.find((x) => x.id === current);
     readout.textContent = `${fmt(dateOf(p.key), { weekday: 'short', month: 'short', day: 'numeric' })} · ${show(m, p.v)}`;
@@ -1424,9 +1446,12 @@ function openHistory(ex) {
     if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
   const draw = () => {
+    const from = rangeStart(historyRange);
+    metrics = allMetrics.map((x) => ({ ...x, pts: x.pts.filter((p) => p.key >= from) }));
+    ranges.replaceChildren(...HISTORY_RANGES.map(([id, label]) => h('button', { class: `hrange${id === historyRange ? ' on' : ''}`, onclick: () => { historyRange = id; draw(); } }, label)));
     const m = metrics.find((x) => x.id === current);
     chips.replaceChildren(...metrics.map((x) => h('button', { class: `hchip${x.id === current ? ' on' : ''}`, onclick: () => { current = x.id; draw(); } }, x.label)));
-    chartWrap.replaceChildren(m ? historyChart(m, pick) : '');
+    chartWrap.replaceChildren(m && m.pts.length ? historyChart(m, pick) : h('p', { class: 'hint hempty' }, 'No workouts in this range.'));
     const last = m && m.pts[0];
     readout.textContent = last ? `Latest · ${show(m, last.v)}` : '';
   };
@@ -1434,11 +1459,11 @@ function openHistory(ex) {
     h('div', { class: 'hdate' }, fmt(dateOf(key), { weekday: 'short', month: 'short', day: 'numeric', year: dateOf(key).getFullYear() === today().getFullYear() ? undefined : 'numeric' }),
       day.name.trim() ? h('span', { class: 'hday' }, ` · ${day.name}`) : null),
     entry.sets.map(doneSummary).filter(Boolean).map((t) => h('div', { class: 'set-text' }, t)))));
-  if (metrics.length) draw();
+  if (allMetrics.length) draw();
   openSheet(ex.name,
     h('button', { class: 'btn small', onclick: () => openExerciseForm(ex) }, 'Edit exercise'),
     logs.length ? null : h('p', { class: 'hint' }, 'No history yet. Log this exercise on a day and it shows up here.'),
-    metrics.length ? h('div', { class: 'hbox' }, chips, readout, chartWrap) : null,
+    allMetrics.length ? h('div', { class: 'hbox' }, chips, readout, chartWrap, ranges) : null,
     rows);
 }
 const exSearch = document.getElementById('exercise-search');

@@ -673,3 +673,8 @@ body { background: radial-gradient(120% 340px at 50% -60px, var(--glow), transpa
     --accent-soft: color-mix(in srgb, var(--day) 30%, transparent);
   }
 }
+
+.hranges { display: flex; gap: 2px; margin: 4px 0 2px; padding: 2px; border-radius: 9px; background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.hrange { flex: 1; padding: 5px 0; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.hrange.on { background: var(--card); color: var(--fg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.hempty { margin: 0; padding: 48px 0; text-align: center; }
