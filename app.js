@@ -417,7 +417,7 @@ function renderEntry(key, entry, editable) {
           onclick: () => { entry.sets.splice(i, 1); save(); refreshDay(key); } }, '×') : null));
   const exEl = h('div', { class: `ex${done ? ' done' : ''}` }, head,
     h('div', { class: 'sets' }, rows,
-      !done ? h('div', { class: 'ex-actions' },
+      !done && !entry.sets.some((st) => st.length) ? h('div', { class: 'ex-actions' },
         h('button', { class: 'add-set', onclick: () => {
           const last = entry.sets[entry.sets.length - 1] || [];
           entry.sets.push(blankSpec(last));

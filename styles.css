@@ -587,6 +587,5 @@ html, body { min-height: 100%; }
 .np-key { height: 46px; border-radius: 8px; background: var(--key); font-size: 22px; font-weight: 500; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12); }
 .np-key:active { background: var(--bg2); }
 .np-act { font-size: 16px; font-weight: 600; }
-.np-act.ok { background: var(--key); color: var(--ink); }
-.np-next { background: var(--accent); color: #fff; }
-.np-next:active { background: color-mix(in srgb, var(--accent) 85%, black); }
+.np-act, .np-act.ok, .np-next { background: var(--accent); color: #fff; }
+.np-act:active { background: color-mix(in srgb, var(--accent) 85%, black); }
