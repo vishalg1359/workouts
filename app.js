@@ -1407,7 +1407,16 @@ function historyMetrics(logs, name = '') {
     }) });
     metrics.push(volume((s) => s.weight), totalReps);
   } else if (kind === 'bw') {
-    metrics.push({ id: 'bwreps', label: 'Reps per set', unit: 'reps', zero: true,
+    if (bw != null) {
+      const load = (s) => bw + (s.weight || 0);
+      metrics.push({ id: 'strength', label: 'Strength', unit: w, show: (p) => `≈${p.v} ${w} max (est. 1 rep), best set ${p.wt ? `at ${signed(p.wt)} ${w}` : 'at bodyweight'}`, pts: series((ss) => {
+        const v = repsRows(ss).filter((s) => load(s) > 0).map((s) => ({ s, e: Math.round(s.reps > 1 ? load(s) * (1 + s.reps / 30) : load(s)) }));
+        if (!v.length) return null;
+        const best = v.reduce((a, x) => (x.e > a.e ? x : a));
+        return { v: best.e, wt: best.s.weight || 0, tag: best.s.weight ? signed(best.s.weight) : '', subs: v.map((x) => x.e) };
+      }) });
+    }
+    metrics.push({ id: 'bwreps', label: 'Reps', unit: 'reps', zero: true,
       show: (p) => `${p.v} reps ${p.wt ? `at ${signed(p.wt)} ${w}` : 'at bodyweight'}`,
       pts: series((ss) => {
         const v = repsRows(ss);
@@ -1418,7 +1427,6 @@ function historyMetrics(logs, name = '') {
     metrics.push({ id: 'weight', label: 'Added weight', unit: w, span: 25, fmt: (v) => signed(v),
       show: (p) => (p.v < 0 ? `assist ${r1(-p.v)} ${w}` : p.v === 0 ? 'bodyweight' : `+${r1(p.v)} ${w}`),
       pts: series((ss) => { const v = ss.filter((s) => s.reps != null).map((s) => s.weight || 0); return v.length ? { v: Math.max(...v), subs: v } : null; }) });
-    metrics.push(totalReps);
     if (bw != null) metrics.push(volume((s) => bw + (s.weight || 0)));
   } else if (kind === 'reps') {
     metrics.push({ id: 'bestreps', label: 'Best set', unit: 'reps', zero: true, pts: series((ss) => {
@@ -1457,7 +1465,8 @@ function historyMetrics(logs, name = '') {
     }) });
   }
   const out = metrics.filter((m) => m.pts.length);
-  const pref = { lift: ['best', 'weight'], bw: ['bwreps'], reps: ['bestreps'], hold: ['longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
+  const pref = { lift: ['best', 'weight'], bw: ['strength', 'bwreps'], reps: ['bestreps'], hold: ['longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
+  if (kind === 'bw' && bw == null) out.note = 'Add your weight in Profile to see Strength and Volume.';
   out.def = (pref.map((id) => out.find((m) => m.id === id)).find(Boolean) || out[0] || {}).id;
   return out;
 }
@@ -1568,6 +1577,7 @@ function openHistory(ex) {
     h('button', { class: 'btn small', onclick: () => openExerciseForm(ex) }, 'Edit exercise'),
     logs.length ? null : h('p', { class: 'hint' }, 'No history yet. Log this exercise on a day and it shows up here.'),
     allMetrics.length ? h('div', { class: 'hbox' }, chips, readout, chartWrap, ranges) : null,
+    allMetrics.note ? h('p', { class: 'hint' }, allMetrics.note) : null,
     rows);
 }
 const exSearch = document.getElementById('exercise-search');
