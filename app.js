@@ -1415,14 +1415,14 @@ function historyMetrics(logs, name = '') {
     }) });
     metrics.push(volume((s) => s.weight), totalReps);
   } else if (kind === 'bw') {
-    metrics.push(hasBw ? volume((s) => bwNow() + (s.weight || 0)) : { id: 'volume', label: 'Volume', unit: w, pts: [], msg: 'Add your weight in Profile to see Volume.' });
+    metrics.push(hasBw ? (() => { const m = volume((s) => bwNow() + (s.weight || 0)); m.pts.forEach((p) => { p.bw = Math.round(bodyweightOn(p.key)); }); m.show = (p) => `${p.v.toLocaleString()} ${w} · using ${p.bw} ${w} bodyweight`; return m; })() : { id: 'volume', label: 'Volume', unit: w, pts: [], msg: 'Add your weight in Profile to see Volume.' });
     if (hasBw) {
       const load = (s) => bwNow() + (s.weight || 0);
-      metrics.push({ id: 'strength', label: 'Strength', unit: w, show: (p) => `≈${p.v} ${w} max (est. 1 rep), best set ${p.wt ? `at ${signed(p.wt)} ${w}` : 'at bodyweight'}`, pts: series((ss) => {
+      metrics.push({ id: 'strength', label: 'Strength', unit: w, show: (p) => `≈${p.v} ${w} max (est. 1 rep), best set ${p.wt ? `at ${signed(p.wt)} ${w}` : 'at bodyweight'} · using ${p.bw} ${w} bodyweight`, pts: series((ss) => {
         const v = repsRows(ss).filter((s) => load(s) > 0).map((s) => ({ s, e: Math.round(s.reps > 1 ? load(s) * (1 + s.reps / 30) : load(s)) }));
         if (!v.length) return null;
         const best = v.reduce((a, x) => (x.e > a.e ? x : a));
-        return { v: best.e, wt: best.s.weight || 0, tag: best.s.weight ? signed(best.s.weight) : '', subs: v.map((x) => x.e) };
+        return { v: best.e, bw: Math.round(bwNow()), wt: best.s.weight || 0, tag: best.s.weight ? signed(best.s.weight) : '', subs: v.map((x) => x.e) };
       }) });
     }
     metrics.push({ id: 'bwreps', label: 'Reps', unit: 'reps', zero: true,
