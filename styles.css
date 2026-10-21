@@ -381,7 +381,10 @@ input, select, textarea { font-size: 16px !important; }
 }
 .np-top { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 8px; }
 .np-label { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.np-done { font-weight: 700; color: var(--ink); padding: 4px 6px; }
+.np-done { font-weight: 700; font-size: 20px; color: var(--muted); padding: 2px 8px; }
+.np-acts { display: flex; align-items: center; gap: 6px; }
+.np-act { font-size: 14px; font-weight: 700; color: var(--fg); background: var(--bg2); border-radius: 999px; padding: 7px 12px; }
+.np-act.ok { background: var(--accent-soft); color: var(--accent); }
 .np-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .np-key { height: 50px; border-radius: 12px; background: var(--bg2); font-size: 22px; font-weight: 700; color: var(--fg); }
 .np-key:active { background: var(--accent-soft); }

@@ -22,7 +22,7 @@ const STARTERS = [
   ['dips', 'dip', 'B'], ['chin-ups', 'pullup', 'B'], ['stairmaster', 'stairs', ['|level', 'for|min']],
   ['stationary bike', 'bike', ['|level', 'for|min']], ['rowing machine', 'rower', ['|m', 'in|min']], ['elliptical', 'elliptical', ['|level', 'for|min']],
   ['running', 'run', ['|mi', 'in|min']], ['walking', 'walk', ['|mi', 'in|min']], ['cable fly', 'fly', 'L'], ['face pulls', 'face-pull', 'L'],
-  ['shrugs', 'shrug', 'L'], ['bulgarian split squats', 'split', 'L'], ['front squats', 'squat', 'L'], ['kettlebell swings', 'kb-swing', 'L'],
+  ['shrugs', 'shrug', 'L'], ['bulgarian split squats', 'split', 'L'], ['front squats', 'squat', 'L'], ['kettlebell swings', 'kb-swing', 'L'], ['turkish get-ups', 'tgu', 'L'],
   ['crunches', 'crunch', 'R'], ['hanging leg raises', 'legraise', 'R'], ['russian twists', 'twist', 'R'], ['jump rope', 'rope', ['|min']],
   ['swimming', 'swim', ['|m', 'in|min']], ['stretching', 'stretch', ['|min']],
 ];
@@ -84,6 +84,13 @@ function seedStarters() {
     state.seed = 2;
   }
   if (state.seed < 3) { state.seed = 3; save(); }
+  if (state.seed < 4) {
+    if (!state.exercises.some((e) => e.name.trim().toLowerCase() === 'turkish get-ups')) {
+      state.exercises.push({ id: uid(), name: 'turkish get-ups', image: '', icon: iconPath('tgu'),
+        spec: [{ join: '', value: '', unit: 'sets' }, { join: '×', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
+    }
+    state.seed = 4; save();
+  }
 }
 function seedV1() {
   const w = weightUnit();
@@ -426,7 +433,7 @@ function renderEntry(key, entry, editable) {
     save();
     refreshDay(key);
   };
-  const wrap = h('div', { class: 'ex-wrap' },
+  const wrap = h('div', { class: 'ex-wrap', 'data-eid': entry.id },
     h('div', { class: 'ex-editbg', 'aria-hidden': 'true' }, 'Edit'),
     h('button', { class: 'ex-del', onclick: remove }, 'Delete'),
     exEl);
@@ -1696,7 +1703,10 @@ const numPad = h('div', { class: 'numpad', hidden: true });
 const padLabel = h('span', { class: 'np-label' });
 function padKey(label, fn, cls = '') { return h('button', { class: `np-key ${cls}`, onclick: fn }, label); }
 numPad.append(
-  h('div', { class: 'np-top' }, padLabel, h('button', { class: 'np-done', onclick: () => closePad() }, 'Done')),
+  h('div', { class: 'np-top' }, padLabel, h('div', { class: 'np-acts' },
+    h('button', { class: 'np-act', onclick: () => padAddSet() }, '+ Set'),
+    h('button', { class: 'np-act ok', onclick: () => padMarkDone() }, '✓ Exercise done'),
+    h('button', { class: 'np-done', 'aria-label': 'Hide keypad', onclick: () => closePad() }, '⌄'))),
   h('div', { class: 'np-grid' },
     ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((d) => padKey(d, () => padType(d))),
     padKey('⌫', () => padBack(), 'np-back'),
@@ -1727,6 +1737,31 @@ function padNext() {
   const all = day ? [...day.querySelectorAll('.nf')] : [];
   const next = all[all.indexOf(padField) + 1];
   if (next) openPad(next); else closePad();
+}
+// The exercise the keypad is currently typing into.
+function padEntry() {
+  const dayEl = padField && padField.closest('.day'), wrap = padField && padField.closest('.ex-wrap');
+  const key = dayEl && dayEl.dataset.key, day = key && getDay(key);
+  const entry = day && wrap && day.entries.find((e) => e.id === wrap.dataset.eid);
+  return entry ? { key, entry, box: padField.closest('#today') || feedEl } : null;
+}
+function padAddSet() {
+  const p = padEntry();
+  if (!p) return;
+  p.entry.sets.push(cloneSpec(p.entry.sets[p.entry.sets.length - 1] || []));
+  save();
+  refreshDay(p.key);
+  const sets = p.box.querySelectorAll(`.day[data-key="${p.key}"] .ex-wrap[data-eid="${p.entry.id}"] .set`);
+  const first = sets.length && sets[sets.length - 1].querySelector('.nf');
+  if (first) openPad(first);
+}
+function padMarkDone() {
+  const p = padEntry();
+  if (!p) return;
+  p.entry.done = true;
+  closePad();
+  save();
+  refreshDay(p.key);
 }
 function openPad(field) {
   clearTimeout(restoreTimer);
