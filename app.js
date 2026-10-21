@@ -382,6 +382,16 @@ function cleanupDay(key) {
   const d = state.days[key];
   if (d && !d.name.trim() && d.entries.length === 0) delete state.days[key];
 }
+// A past day with nothing logged goes back to rest once you leave it.
+function pruneEmptyPast(keep) {
+  const t = todayKey();
+  let changed = false;
+  for (const k of Object.keys(state.days)) {
+    if (k < t && k !== keep && !state.days[k].entries.length) { delete state.days[k]; changed = true; }
+  }
+  if (changed) save();
+  return changed;
+}
 
 // ---------- log feed (every day, oldest at top; loads forever both ways) ----------
 const feedEl = document.getElementById('feed');
@@ -749,6 +759,7 @@ const todayTabActive = () => document.getElementById('view-today').classList.con
 function setViewDay(key) {
   closeDayPicker();
   viewDay = key >= todayKey() ? null : key;
+  if (pruneEmptyPast(dayViewKey())) renderFeed();
   lastDayOpen = false;
   closePad();
   renderToday();
@@ -1734,6 +1745,7 @@ renderCloud();
 // Coming back to the Calendar tab always centers today.
 function showView(name) {
   const wasLog = document.getElementById('view-log').classList.contains('active');
+  if (pruneEmptyPast(name === 'today' ? dayViewKey() : null)) { renderFeed(); renderToday(); }
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === name));
   if (name === 'log' && !wasLog) { scrollToToday(false); updateTitle(); }
@@ -1876,10 +1888,12 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+  if (hiddenAt && Date.now() - hiddenAt > 120000 && sheet.hidden && !padField && pruneEmptyPast(null)) { renderFeed(); renderToday(); }
   if (hiddenAt && Date.now() - hiddenAt > 120000 && logActive() && sheet.hidden && !padField) scrollToToday(false);
 });
 window.addEventListener('pageshow', (e) => { if (e.persisted && logActive()) scrollToToday(false); });
 seedStarters();
+pruneEmptyPast(null);
 applyTheme();
 initRange();
 renderFeed();
