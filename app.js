@@ -1415,19 +1415,7 @@ function historyMetrics(logs, name = '') {
     }) });
     metrics.push(volume((s) => s.weight), totalReps);
   } else if (kind === 'bw') {
-    // Volume = reps × BW + reps × added weight. BW is a stand-in when no weight is in Profile.
-    const stand = w === 'lb' ? 170 : 77;
-    const bwFmt = (v) => `${r1(v / stand)} BW`;
-    metrics.push({ id: 'volume', label: 'Volume', unit: w, zero: true, fmt: hasBw ? null : bwFmt,
-      show: (p) => `${p.reps} × BW${p.add ? ` ${p.add > 0 ? '+' : '−'} ${Math.abs(p.add)} ${w}` : ''}${p.real != null ? ` (≈${p.real} ${w})` : ''}`,
-      pts: series((ss) => {
-        const v = repsRows(ss);
-        if (!v.length) return null;
-        const reps = v.reduce((a, s) => a + s.sets * s.reps, 0);
-        const add = Math.round(v.reduce((a, s) => a + s.sets * s.reps * (s.weight || 0), 0));
-        const b = hasBw ? bwNow() : stand;
-        return { v: Math.round(reps * b + add), reps, add, real: hasBw ? Math.round(reps * b + add) : null, label: `${reps} BW`, tag: add ? signed(add) : '' };
-      }) });
+    metrics.push(hasBw ? volume((s) => bwNow() + (s.weight || 0)) : { id: 'volume', label: 'Volume', unit: w, pts: [], msg: 'Add your weight in Profile to see Volume.' });
     if (hasBw) {
       const load = (s) => bwNow() + (s.weight || 0);
       metrics.push({ id: 'strength', label: 'Strength', unit: w, show: (p) => `≈${p.v} ${w} max (est. 1 rep), best set ${p.wt ? `at ${signed(p.wt)} ${w}` : 'at bodyweight'}`, pts: series((ss) => {
@@ -1484,9 +1472,9 @@ function historyMetrics(logs, name = '') {
       return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.units.level * s.units.min, 0)) : null;
     }) });
   }
-  const out = metrics.filter((m) => m.pts.length);
+  const out = metrics.filter((m) => m.pts.length || m.msg);
   const pref = { lift: ['best', 'weight'], bw: ['volume', 'strength', 'bwreps'], reps: ['bestreps'], hold: ['longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
-  if (kind === 'bw' && !hasBw) out.note = 'BW = your bodyweight. Add your weight in Profile to also see Volume in lb and the Strength graph.';
+  if (kind === 'bw' && !hasBw) out.note = 'Add your weight in Profile to see Volume and Strength.';
   else if (kind === 'bw') {
     const lastD = (state.profile.weightLog || []).map((x) => x.d).filter(Boolean).sort().pop();
     if (!lastD || (dateOf(todayKey()) - dateOf(lastD)) / 864e5 > 30)
@@ -1589,7 +1577,7 @@ function openHistory(ex) {
     ranges.replaceChildren(...HISTORY_RANGES.map(([id, label]) => h('button', { class: `hrange${id === historyRange ? ' on' : ''}`, onclick: () => { historyRange = id; draw(); } }, label)));
     const m = metrics.find((x) => x.id === current);
     chips.replaceChildren(...metrics.map((x) => h('button', { class: `hchip${x.id === current ? ' on' : ''}`, onclick: () => { current = x.id; draw(); } }, x.label)));
-    chartWrap.replaceChildren(m && m.pts.length ? historyChart(m, pick) : h('p', { class: 'hint hempty' }, 'No workouts in this range.'));
+    chartWrap.replaceChildren(m && m.pts.length ? historyChart(m, pick) : h('p', { class: 'hint hempty' }, (m && m.msg) || 'No workouts in this range.'));
     const last = m && m.pts[0];
     readout.textContent = last ? `Latest · ${show(m, last)}` : '';
   };
