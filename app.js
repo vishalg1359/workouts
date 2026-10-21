@@ -174,6 +174,7 @@ function icon(item, size) {
 // ---------- spec blocks ----------
 // A spec is a list of blocks: { join, value, unit }. e.g. [ {'',3,'sets'}, {'×','','reps'}, {'at','','lb'} ]
 const cloneSpec = (spec) => (spec || []).map((b) => ({ join: b.join || '', value: b.value || '', unit: b.unit || '' }));
+const blankSpec = (spec) => cloneSpec(spec).map((b) => ({ ...b, value: '' }));
 const weightUnit = () => (state.profile.units === 'metric' ? 'kg' : 'lb');
 
 function specSummary(spec, blankMark) {
@@ -419,10 +420,10 @@ function renderEntry(key, entry, editable) {
       !done ? h('div', { class: 'ex-actions' },
         h('button', { class: 'add-set', onclick: () => {
           const last = entry.sets[entry.sets.length - 1] || [];
-          entry.sets.push(cloneSpec(last));
+          entry.sets.push(blankSpec(last));
           save();
           refreshDay(key);
-        } }, '+ set'),
+        } }, '+ row'),
         h('button', { class: 'done-btn', onclick: () => { entry.done = true; save(); refreshDay(key); } }, 'Done')) : null),
     entry.details ? h('div', { class: 'edetails' }, entry.details) : null);
   const remove = () => {
@@ -1170,7 +1171,7 @@ function openEntryEditor(key, id) {
   openSheet('This day only',
     field('Name', name),
     setsWrap,
-    h('button', { class: 'btn small', onclick: () => { sets.push(cloneSpec(sets[sets.length - 1] || [])); drawSets(); } }, '+ Add set'),
+    h('button', { class: 'btn small', onclick: () => { sets.push(blankSpec(sets[sets.length - 1] || [])); drawSets(); } }, '+ Add row'),
     h('button', { class: 'btn primary', onclick: () => {
       entry.name = name.value.trim() || entry.name;
       entry.sets = sets;
@@ -1703,14 +1704,13 @@ const numPad = h('div', { class: 'numpad', hidden: true });
 const padLabel = h('span', { class: 'np-label' });
 function padKey(label, fn, cls = '') { return h('button', { class: `np-key ${cls}`, onclick: fn }, label); }
 numPad.append(
-  h('div', { class: 'np-top' }, padLabel, h('div', { class: 'np-acts' },
-    h('button', { class: 'np-act', onclick: () => padAddSet() }, '+ Set'),
-    h('button', { class: 'np-act ok', onclick: () => padMarkDone() }, '✓ Exercise done'),
-    h('button', { class: 'np-done', 'aria-label': 'Hide keypad', onclick: () => closePad() }, '⌄'))),
+  h('div', { class: 'np-top' }, padLabel, h('button', { class: 'np-done', 'aria-label': 'Hide keypad', onclick: () => closePad() }, '⌄')),
   h('div', { class: 'np-grid' },
     ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((d) => padKey(d, () => padType(d))),
     padKey('⌫', () => padBack(), 'np-back'),
-    padKey('Next', () => padNext(), 'np-next')));
+    padKey('+ Row', () => padAddSet(), 'np-act'),
+    padKey('✓ Done', () => padMarkDone(), 'np-act ok'),
+    padKey('Next', () => padNext(), 'np-act np-next')));
 document.body.append(numPad);
 function setPadValue(v) {
   const b = padField._block;
@@ -1748,7 +1748,7 @@ function padEntry() {
 function padAddSet() {
   const p = padEntry();
   if (!p) return;
-  p.entry.sets.push(cloneSpec(p.entry.sets[p.entry.sets.length - 1] || []));
+  p.entry.sets.push(blankSpec(p.entry.sets[p.entry.sets.length - 1] || []));
   save();
   refreshDay(p.key);
   const sets = p.box.querySelectorAll(`.day[data-key="${p.key}"] .ex-wrap[data-eid="${p.entry.id}"] .set`);
