@@ -18,7 +18,7 @@ const STARTERS = [
   ['push-ups', 'pushup', 'R'], ['plank', 'plank', 'T'], ['treadmill', 'treadmill', ['|mph', 'for|min', 'at|% incline']],
   ['incline dumbbell press', 'db-incline', 'L'], ['dumbbell rows', 'db-row', 'L'], ['dumbbell shoulder press', 'db-ohp', 'L'],
   ['lateral raises', 'lateral', 'L'], ['goblet squats', 'goblet', 'L'], ['hammer curls', 'curl', 'L'], ['tricep extensions', 'tricep', 'L'],
-  ['leg extensions', 'legext', 'L'], ['leg curls', 'legcurl', 'L'], ['hip thrusts', 'hipthrust', 'L'], ['calf raises', 'calf', 'L'],
+  ['leg extensions', 'legext', 'L'], ['leg curls', 'legcurl', 'L'], ['hip abductor', 'legext', 'L'], ['hip adductor', 'legext', 'L'], ['hip thrusts', 'hipthrust', 'L'], ['calf raises', 'calf', 'L'],
   ['dips', 'dip', 'B'], ['chin-ups', 'pullup', 'B'], ['stairmaster', 'stairs', ['|level', 'for|min']],
   ['stationary bike', 'bike', ['|level', 'for|min']], ['rowing machine', 'rower', ['|m', 'in|min']], ['elliptical', 'elliptical', ['|level', 'for|min']],
   ['running', 'run', ['|mi', 'in|min']], ['walking', 'walk', ['|mi', 'in|min']], ['cable fly', 'fly', 'L'], ['face pulls', 'face-pull', 'L'],
@@ -120,6 +120,13 @@ function seedStarters() {
     if (!state.exercises.some((e) => e.name.trim().toLowerCase() === 'ab circuit'))
       state.exercises.push({ id: uid(), name: 'ab circuit', image: '', icon: iconPath('crunch'), spec: [{ join: '', value: '', unit: 'min' }] });
     state.seed = 7; save();
+  }
+  if (state.seed < 8) {
+    for (const name of ['hip abductor', 'hip adductor'])
+      if (!state.exercises.some((e) => e.name.trim().toLowerCase() === name))
+        state.exercises.push({ id: uid(), name, image: '', icon: iconPath('legext'),
+          spec: [{ join: '', value: '', unit: 'sets' }, { join: '×', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
+    state.seed = 8; save();
   }
 }
 function seedV1() {
