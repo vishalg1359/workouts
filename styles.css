@@ -656,3 +656,20 @@ body { background: radial-gradient(120% 340px at 50% -60px, var(--glow), transpa
 /* Welcome */
 .welcome h2 { font-weight: 700; letter-spacing: -0.02em; }
 .wpick { font-weight: 600; border-width: 1px; }
+
+/* Past days and the last-workout box use their workout-type color instead of the app color */
+.day.past[style], .lastday[style] {
+  --accent: var(--day);
+  --ink: var(--day);
+  --accent-soft: color-mix(in srgb, var(--day) 12%, transparent);
+}
+:root[data-theme="dark"] .day.past[style], :root[data-theme="dark"] .lastday[style] {
+  --ink: color-mix(in srgb, var(--day) 65%, white);
+  --accent-soft: color-mix(in srgb, var(--day) 30%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .day.past[style], :root:not([data-theme="light"]) .lastday[style] {
+    --ink: color-mix(in srgb, var(--day) 65%, white);
+    --accent-soft: color-mix(in srgb, var(--day) 30%, transparent);
+  }
+}
