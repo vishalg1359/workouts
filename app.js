@@ -885,8 +885,6 @@ function syncWelcome() {
         return h('button', { class: 'wpick', style: c ? `--day:${c}` : null, onclick: () => { ensureDay(key).name = p; cleanupDay(key); afterDayEdit(key); } }, p);
       }),
       h('button', { class: 'wpick more', onclick: () => openPresetPicker(key) }, 'Other…'))));
-  const add = root.querySelector('.daybox .add-ex');
-  if (add) root.querySelector('.welcome').append(add);
 }
 function renderTodayType() {
   const slot = document.getElementById('today-type');
