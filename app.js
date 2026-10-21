@@ -423,7 +423,7 @@ function renderEntry(key, entry, editable) {
           entry.sets.push(blankSpec(last));
           save();
           refreshDay(key);
-        } }, '+ row'),
+        } }, '+ Row'),
         h('button', { class: 'done-btn', onclick: () => { entry.done = true; save(); refreshDay(key); } }, 'Done')) : null),
     entry.details ? h('div', { class: 'edetails' }, entry.details) : null);
   const remove = () => {
@@ -1708,9 +1708,9 @@ numPad.append(
   h('div', { class: 'np-grid' },
     ...['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((d) => padKey(d, () => padType(d))),
     padKey('⌫', () => padBack(), 'np-back'),
+    padKey('Next', () => padNext(), 'np-act np-next'),
     padKey('+ Row', () => padAddSet(), 'np-act'),
-    padKey('✓ Done', () => padMarkDone(), 'np-act ok'),
-    padKey('Next', () => padNext(), 'np-act np-next')));
+    padKey('Done', () => padMarkDone(), 'np-act ok')));
 document.body.append(numPad);
 function setPadValue(v) {
   const b = padField._block;

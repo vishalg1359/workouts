@@ -11,15 +11,16 @@
   --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
   --pop-soft: color-mix(in srgb, var(--pop) 9%, transparent);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --key: #ffffff; --padbg: #e6e6eb; --field: #ffffff;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #0c0c0e; --card: #19191c; --bg2: #26262a; --fg: #f2f2f5; --muted: #8a8a92; --line: #2b2b30;
+  --bg: #0c0c0e; --card: #19191c; --bg2: #26262a; --fg: #f2f2f5; --muted: #8a8a92; --line: #2b2b30; --key: #2e2e33; --padbg: #161618; --field: #222226;
   --shadow: none; color-scheme: dark; --ink: color-mix(in srgb, var(--accent) 55%, white); --accent-soft: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c0c0e; --card: #19191c; --bg2: #26262a; --fg: #f2f2f5; --muted: #8a8a92; --line: #2b2b30;
+    --bg: #0c0c0e; --card: #19191c; --bg2: #26262a; --fg: #f2f2f5; --muted: #8a8a92; --line: #2b2b30; --key: #2e2e33; --padbg: #161618; --field: #222226;
     --shadow: none; color-scheme: dark; --ink: color-mix(in srgb, var(--accent) 55%, white); --accent-soft: color-mix(in srgb, var(--accent) 30%, transparent);
   }
 }
@@ -557,3 +558,35 @@ html, body { min-height: 100%; }
 .wpicks { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; max-width: 320px; }
 .wpick { font: inherit; font-size: 16px; font-weight: 600; padding: 10px 16px; border-radius: 999px; border: 1.5px solid var(--day, var(--line)); background: color-mix(in srgb, var(--day, transparent) 14%, transparent); color: var(--fg); }
 .wpick.more { --day: initial; border-style: dashed; color: var(--muted); background: none; }
+
+/* Set rows: compact, even fields aligned under the exercise name. */
+.sets { margin: 6px 0 0 46px; gap: 6px; }
+.set { gap: 6px; }
+.set .spec { gap: 5px; align-items: center; }
+.set .tile { height: 32px; padding: 0 8px 0 0; border-radius: 8px; background: var(--field); border: 1px solid var(--line); }
+.set .tile .nf { height: 30px; min-width: 2ch; padding: 0 3px 0 8px; font-size: 16px; font-weight: 600; }
+.set .ulabel { font-size: 12px; font-weight: 500; }
+.set .ulabel.pre { padding: 0 0 0 8px; }
+.set .jw { font-size: 12px; font-weight: 500; padding: 0; }
+.set .jw.sign { min-width: 24px; height: 32px; border-radius: 8px; font-size: 14px; font-weight: 600; background: var(--field); border: 1px solid var(--line); }
+.set .sn { width: 14px; font-size: 12px; font-weight: 600; }
+.set .x { width: 24px; height: 32px; font-size: 16px; opacity: 0.6; }
+.tile:has(.nf.active) { border-color: var(--accent); background: var(--field); box-shadow: 0 0 0 2px var(--accent-soft); }
+.ex .ename { font-weight: 600; }
+.ex-actions { gap: 8px; margin-top: 4px; }
+.add-set, .done-btn { min-height: 0; height: 28px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1px solid var(--line); background: var(--field); }
+.add-set { color: var(--fg); }
+.done-btn { color: var(--ink); }
+
+/* Keypad: iOS-style keys on a tinted tray. */
+.numpad { background: var(--padbg); border-top: 1px solid var(--line); box-shadow: none; padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); }
+.np-top { padding: 2px 4px 6px; }
+.np-label { font-size: 11px; font-weight: 600; }
+.np-done { font-size: 17px; font-weight: 600; }
+.np-grid { gap: 6px; }
+.np-key { height: 46px; border-radius: 8px; background: var(--key); font-size: 22px; font-weight: 500; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12); }
+.np-key:active { background: var(--bg2); }
+.np-act { font-size: 16px; font-weight: 600; }
+.np-act.ok { background: var(--key); color: var(--ink); }
+.np-next { background: var(--accent); color: #fff; }
+.np-next:active { background: color-mix(in srgb, var(--accent) 85%, black); }
