@@ -1368,77 +1368,155 @@ function setParts(spec) {
   }
   return out;
 }
-function historyMetrics(logs) {
+const UNIT_LABELS = { min: 'Time', sec: 'Time', hr: 'Time', mi: 'Distance', km: 'Distance', m: 'Distance', mph: 'Speed', 'km/h': 'Speed', level: 'Level', '% incline': 'Incline', floors: 'Floors', steps: 'Steps', cal: 'Calories', rounds: 'Rounds' };
+const r1 = (v) => Math.round(v * 10) / 10;
+const signed = (v) => (v > 0 ? `+${r1(v)}` : v < 0 ? `−${r1(-v)}` : 'BW');
+// Each kind of exercise gets graphs that fit it: lifts, bodyweight (+/−), reps only, holds, stretches, timed, cardio.
+function exerciseKind(name, rows) {
+  const any = (f) => rows.some(f);
+  if (any((s) => s.added)) return 'bw';
+  if (any((s) => s.weight != null)) return 'lift';
+  if (any((s) => s.reps != null)) return 'reps';
+  if (any((s) => s.units.sec != null)) return /stretch/i.test(name) ? 'stretch' : 'hold';
+  if (any((s) => s.units.min != null) && rows.every((s) => Object.keys(s.units).every((u) => u === 'min'))) return 'time';
+  return 'cardio';
+}
+function historyMetrics(logs, name = '') {
   const parts = logs.map((l) => ({ key: l.key, sets: l.entry.sets.map(setParts) }));
-  const has = (f) => parts.some((p) => p.sets.some(f));
+  const kind = exerciseKind(name, parts.flatMap((p) => p.sets));
   const metrics = [];
   const w = weightUnit();
-  const series = (fn) => parts.map((p) => ({ key: p.key, v: fn(p.sets) })).filter((pt) => pt.v != null);
-  if (has((s) => s.weight != null)) {
-    metrics.push({ id: 'weight', label: 'Weight', unit: w, pts: series((ss) => { const v = ss.map((s) => s.weight).filter((x) => x != null); return v.length ? Math.max(...v) : null; }) });
-    if (has((s) => s.reps != null && s.weight != null)) {
-      // Bodyweight lifts (+/− weight) count your profile weight plus what you added.
-      const kg = state.profile.weightKg;
-      const bw = kg == null ? null : w === 'lb' ? kg * 2.20462 : kg;
-      const load = (s) => (s.added ? (bw == null ? null : bw + s.weight) : s.weight);
-      metrics.push({ id: 'volume', label: 'Volume', unit: w, pts: series((ss) => { const v = ss.filter((s) => s.reps != null && s.weight != null && load(s) > 0); return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.reps * load(s), 0)) : null; }) });
-    }
+  const series = (fn) => parts.map((p) => { const r = fn(p.sets); return r == null ? null : { key: p.key, ...(typeof r === 'number' ? { v: r } : r) }; }).filter(Boolean);
+  const kg = state.profile.weightKg;
+  const bw = kg == null ? null : w === 'lb' ? kg * 2.20462 : kg;
+  const repsRows = (ss) => ss.filter((s) => s.reps != null && s.reps > 0);
+  const totalReps = { id: 'reps', label: 'Total reps', unit: 'reps', zero: true, pts: series((ss) => { const v = repsRows(ss); return v.length ? v.reduce((a, s) => a + s.sets * s.reps, 0) : null; }) };
+  const volume = (load) => ({ id: 'volume', label: 'Volume', unit: w, zero: true, pts: series((ss) => {
+    const v = ss.filter((s) => s.reps != null && s.weight != null && load(s) > 0);
+    return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.reps * load(s), 0)) : null;
+  }) });
+  if (kind === 'lift') {
+    const e1 = (s) => Math.round(s.reps > 1 ? s.weight * (1 + s.reps / 30) : s.weight);
+    metrics.push({ id: 'best', label: 'Best set', unit: w, show: (p) => `≈${p.v} ${w} max (est. 1 rep)`, pts: series((ss) => {
+      const v = ss.filter((s) => s.weight > 0 && s.reps > 0).map(e1);
+      return v.length ? { v: Math.max(...v), subs: v } : null;
+    }) });
+    metrics.push({ id: 'weight', label: 'Top weight', unit: w, pts: series((ss) => {
+      const v = ss.map((s) => s.weight).filter((x) => x != null && x > 0);
+      return v.length ? { v: Math.max(...v), subs: v } : null;
+    }) });
+    metrics.push(volume((s) => s.weight), totalReps);
+  } else if (kind === 'bw') {
+    metrics.push({ id: 'bwreps', label: 'Reps per set', unit: 'reps', zero: true,
+      show: (p) => `${p.v} reps ${p.wt ? `at ${signed(p.wt)} ${w}` : 'at bodyweight'}`,
+      pts: series((ss) => {
+        const v = repsRows(ss);
+        if (!v.length) return null;
+        const best = v.reduce((a, s) => (s.reps > a.reps || (s.reps === a.reps && (s.weight || 0) > (a.weight || 0)) ? s : a));
+        return { v: best.reps, wt: best.weight || 0, tag: best.weight ? signed(best.weight) : '', subs: v.filter((s) => s !== best).map((s) => s.reps) };
+      }) });
+    metrics.push({ id: 'weight', label: 'Added weight', unit: w, span: 25, fmt: (v) => signed(v),
+      show: (p) => (p.v < 0 ? `assist ${r1(-p.v)} ${w}` : p.v === 0 ? 'bodyweight' : `+${r1(p.v)} ${w}`),
+      pts: series((ss) => { const v = ss.filter((s) => s.reps != null).map((s) => s.weight || 0); return v.length ? { v: Math.max(...v), subs: v } : null; }) });
+    metrics.push(totalReps);
+    if (bw != null) metrics.push(volume((s) => bw + (s.weight || 0)));
+  } else if (kind === 'reps') {
+    metrics.push({ id: 'bestreps', label: 'Best set', unit: 'reps', zero: true, pts: series((ss) => {
+      const v = repsRows(ss).map((s) => s.reps);
+      return v.length ? { v: Math.max(...v), subs: v } : null;
+    }) }, totalReps);
   }
-  if (has((s) => s.reps != null)) {
-    metrics.push({ id: 'reps', label: 'Reps', unit: 'reps', pts: series((ss) => { const v = ss.filter((s) => s.reps != null); return v.length ? v.reduce((a, s) => a + s.sets * s.reps, 0) : null; }) });
+  const timeUnit = kind === 'hold' || kind === 'stretch' ? 'sec' : kind === 'time' ? 'min' : null;
+  if (timeUnit) {
+    const rows = (ss) => ss.filter((s) => s.units[timeUnit] != null);
+    const longest = { id: 'longest', label: 'Longest hold', unit: timeUnit, zero: true, pts: series((ss) => {
+      const v = rows(ss).map((s) => s.units[timeUnit]);
+      return v.length ? { v: Math.max(...v), subs: v } : null;
+    }) };
+    const total = { id: 'total', label: 'Total time', unit: timeUnit, zero: true, pts: series((ss) => {
+      const v = rows(ss);
+      return v.length ? r1(v.reduce((a, s) => a + s.sets * s.units[timeUnit], 0)) : null;
+    }) };
+    if (kind === 'hold') metrics.push(longest, total);
+    else metrics.push(total);
   }
-  const units = [...new Set(parts.flatMap((p) => p.sets.flatMap((s) => Object.keys(s.units))))];
+  const units = [...new Set(parts.flatMap((p) => p.sets.flatMap((s) => Object.keys(s.units))))].filter((u) => u !== timeUnit)
+    .sort((a, b) => ((x) => (x < 0 ? 9 : x))(['min', 'mi', 'km', 'm'].indexOf(a)) - ((x) => (x < 0 ? 9 : x))(['min', 'mi', 'km', 'm'].indexOf(b)));
   units.forEach((u) => {
     const sum = SUM_UNITS.has(u);
-    metrics.push({ id: `u:${u}`, label: u === 'min' ? 'Time' : u === 'level' ? 'Level' : u, unit: u, pts: series((ss) => {
+    metrics.push({ id: `u:${u}`, label: UNIT_LABELS[u] || u, unit: u, zero: sum, pts: series((ss) => {
       const v = ss.map((s) => (s.units[u] == null ? null : (sum ? s.sets : 1) * s.units[u])).filter((x) => x != null);
       if (!v.length) return null;
-      return Math.round((sum ? v.reduce((a, b) => a + b, 0) : Math.max(...v)) * 10) / 10;
+      return r1(sum ? v.reduce((a, b) => a + b, 0) : Math.max(...v));
     }) });
   });
   if (units.includes('level') && units.includes('min')) {
-    metrics.push({ id: 'effort', label: 'Effort', unit: 'level × min', pts: series((ss) => {
+    metrics.push({ id: 'effort', label: 'Effort', unit: 'level × min', zero: true, pts: series((ss) => {
       const v = ss.filter((s) => s.units.level != null && s.units.min != null);
       return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.units.level * s.units.min, 0)) : null;
     }) });
   }
-  return metrics.filter((m) => m.pts.length);
+  const out = metrics.filter((m) => m.pts.length);
+  const pref = { lift: ['best', 'weight'], bw: ['bwreps'], reps: ['bestreps'], hold: ['longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
+  out.def = (pref.map((id) => out.find((m) => m.id === id)).find(Boolean) || out[0] || {}).id;
+  return out;
 }
 function historyChart(metric, onPick) {
   const pts = metric.pts.slice().reverse();
-  const W = 320, H = 150, L = 34, R = 12, T = 14, B = 22;
+  const W = 320, H = 172, L = 34, R = 14, T = 22, B = 24;
   const xs = pts.map((p) => dateOf(p.key).getTime());
   const vs = pts.map((p) => p.v);
+  const all = pts.flatMap((p) => [p.v, ...(p.subs || [])]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
-  let y0 = Math.min(...vs), y1 = Math.max(...vs);
+  let y0 = Math.min(...all), y1 = Math.max(...all);
+  if (metric.zero) y0 = Math.min(0, y0);
+  if (metric.span) {
+    y0 = Math.min(y0, 0); y1 = Math.max(y1, 0);
+    if (y1 - y0 < metric.span) { if (y1 > 0 || y0 === 0) y1 = y0 + metric.span; else y0 = y1 - metric.span; }
+  }
   if (y0 === y1) { y0 -= 1; y1 += 1; }
-  const pad = (y1 - y0) * 0.12;
-  y0 -= pad; y1 += pad;
+  const pad = (y1 - y0) * 0.1;
+  y1 += pad;
+  if (!(metric.zero && y0 === 0)) y0 -= pad;
   const X = (x) => (x1 === x0 ? (L + W - R) / 2 : L + ((x - x0) / (x1 - x0)) * (W - L - R));
   const Y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
   const ns = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text != null) e.textContent = text; return e; };
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'hchart' });
-  const fmtV = (v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v * 10) / 10));
+  const fmtV = metric.fmt || ((v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` : String(r1(v))));
   const hi = Math.max(...vs), lo = Math.min(...vs);
-  [[hi, Y(hi)], [lo, Y(lo)]].forEach(([v, y], i) => {
-    if (i && hi === lo) return;
-    svg.append(el('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'hgrid' }), el('text', { x: L - 6, y: y + 4, class: 'hlabel', 'text-anchor': 'end' }, fmtV(v)));
+  const grid = [hi, lo];
+  if (metric.zero || metric.span) grid.push(0);
+  const drawn = [];
+  grid.forEach((v) => {
+    const y = Y(v);
+    if (drawn.some((d) => Math.abs(d - y) < 12)) return;
+    drawn.push(y);
+    svg.append(el('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'hgrid' }));
+    if (v === 0 || pts.length > 12) svg.append(el('text', { x: L - 6, y: y + 4, class: 'hlabel', 'text-anchor': 'end' }, fmtV(v)));
   });
   const short = (k) => fmt(dateOf(k), { month: 'short', day: 'numeric' });
   svg.append(el('text', { x: L, y: H - 6, class: 'hlabel' }, short(pts[0].key)));
   if (pts.length > 1) svg.append(el('text', { x: W - R, y: H - 6, class: 'hlabel', 'text-anchor': 'end' }, short(pts[pts.length - 1].key)));
+  pts.forEach((p, i) => (p.subs || []).forEach((v) => { if (v !== p.v) svg.append(el('circle', { cx: X(xs[i]), cy: Y(v), r: 2.6, class: 'hsub' })); }));
   if (pts.length > 1) svg.append(el('polyline', { points: pts.map((p, i) => `${X(xs[i])},${Y(p.v)}`).join(' '), class: 'hline' }));
+  const hiI = vs.indexOf(hi), loI = vs.indexOf(lo);
   pts.forEach((p, i) => {
+    const cx = X(xs[i]), cy = Y(p.v);
     const g = el('g', { class: 'hdot', 'data-key': p.key });
-    g.append(el('circle', { cx: X(xs[i]), cy: Y(p.v), r: 14, class: 'hhit' }), el('circle', { cx: X(xs[i]), cy: Y(p.v), r: 4.5, class: 'hpt' }));
+    g.append(el('circle', { cx, cy: cy, r: 14, class: 'hhit' }), el('circle', { cx, cy, r: 4.5, class: 'hpt' }));
+    if (pts.length <= 12 || i === hiI || i === loI || i === pts.length - 1) {
+      const tx = Math.min(W - R - 6, Math.max(L + 6, cx));
+      g.append(el('text', { x: tx, y: cy - 9, class: 'hval', 'text-anchor': 'middle' }, fmtV(p.v)));
+      if (p.tag) g.append(el('text', { x: tx, y: cy + 16, class: 'htag', 'text-anchor': 'middle' }, p.tag));
+    }
     g.addEventListener('click', () => onPick(p));
     svg.append(g);
   });
   return svg;
 }
 function defaultMetric(metrics) {
-  return (metrics.find((m) => m.id === 'weight') || metrics.find((m) => m.id === 'reps') || metrics.find((m) => m.id === 'u:min') || metrics[0] || {}).id;
+  return metrics.def || (metrics[0] || {}).id;
 }
 const HISTORY_RANGES = [['1m', '1M', 1], ['3m', '3M', 3], ['6m', '6M', 6], ['1y', '1Y', 12], ['all', 'All', 0]];
 let historyRange = 'all';
@@ -1451,7 +1529,7 @@ function rangeStart(id) {
 }
 function openHistory(ex) {
   const logs = exerciseLogs(ex);
-  const allMetrics = historyMetrics(logs);
+  const allMetrics = historyMetrics(logs, ex.name);
   let metrics = allMetrics;
   let current = defaultMetric(metrics);
   const ranges = h('div', { class: 'hranges' });
@@ -1459,10 +1537,12 @@ function openHistory(ex) {
   const readout = h('div', { class: 'hreadout' });
   const chips = h('div', { class: 'hchips' });
   const rows = h('div', {});
-  const show = (m, v) => (m.id === 'weight' && v < 0 ? `assist ${-v} ${m.unit}` : m.id === 'weight' && v === 0 ? 'bodyweight' : `${v} ${m.unit}`);
+  const show = (m, p) => (m.show ? m.show(p) : `${p.v} ${m.unit}`);
   const pick = (p) => {
     const m = metrics.find((x) => x.id === current);
-    readout.textContent = `${fmt(dateOf(p.key), { weekday: 'short', month: 'short', day: 'numeric' })} · ${show(m, p.v)}`;
+    const sets = logs.filter((l) => l.key === p.key).flatMap((l) => l.entry.sets.map(doneSummary)).filter(Boolean);
+    readout.replaceChildren(`${fmt(dateOf(p.key), { weekday: 'short', month: 'short', day: 'numeric' })} · ${show(m, p)}`,
+      ...sets.map((t) => h('div', { class: 'hsets' }, t)));
     chartWrap.querySelectorAll('.hdot').forEach((d) => d.classList.toggle('on', d.dataset.key === p.key));
     rows.querySelectorAll('.hrow').forEach((r) => r.classList.toggle('on', r.dataset.key === p.key));
     const row = rows.querySelector(`.hrow[data-key="${p.key}"]`);
@@ -1471,12 +1551,13 @@ function openHistory(ex) {
   const draw = () => {
     const from = rangeStart(historyRange);
     metrics = allMetrics.map((x) => ({ ...x, pts: x.pts.filter((p) => p.key >= from) }));
+    if (!metrics.some((x) => x.id === current)) current = defaultMetric(allMetrics);
     ranges.replaceChildren(...HISTORY_RANGES.map(([id, label]) => h('button', { class: `hrange${id === historyRange ? ' on' : ''}`, onclick: () => { historyRange = id; draw(); } }, label)));
     const m = metrics.find((x) => x.id === current);
     chips.replaceChildren(...metrics.map((x) => h('button', { class: `hchip${x.id === current ? ' on' : ''}`, onclick: () => { current = x.id; draw(); } }, x.label)));
     chartWrap.replaceChildren(m && m.pts.length ? historyChart(m, pick) : h('p', { class: 'hint hempty' }, 'No workouts in this range.'));
     const last = m && m.pts[0];
-    readout.textContent = last ? `Latest · ${show(m, last.v)}` : '';
+    readout.textContent = last ? `Latest · ${show(m, last)}` : '';
   };
   rows.replaceChildren(...logs.map(({ key, day, entry }) => h('div', { class: 'hrow', 'data-key': key },
     h('div', { class: 'hdate' }, fmt(dateOf(key), { weekday: 'short', month: 'short', day: 'numeric', year: dateOf(key).getFullYear() === today().getFullYear() ? undefined : 'numeric' }),
