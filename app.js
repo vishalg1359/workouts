@@ -23,7 +23,7 @@ const STARTERS = [
   ['stationary bike', 'bike', ['|level', 'for|min']], ['rowing machine', 'rower', ['|m', 'in|min']], ['elliptical', 'elliptical', ['|level', 'for|min']],
   ['running', 'run', ['|mi', 'in|min']], ['walking', 'walk', ['|mi', 'in|min']], ['cable fly', 'fly', 'L'], ['face pulls', 'face-pull', 'L'],
   ['shrugs', 'shrug', 'L'], ['bulgarian split squats', 'split', 'L'], ['front squats', 'squat', 'L'], ['kettlebell swings', 'kb-swing', 'L'], ['turkish get-ups', 'tgu', 'L'],
-  ['crunches', 'crunch', 'R'], ['hanging leg raises', 'legraise', 'R'], ['russian twists', 'twist', 'R'], ['jump rope', 'rope', ['|min']],
+  ['crunches', 'crunch', 'R'], ['hanging leg raises', 'legraise', 'R'], ['russian twists', 'twist', 'R'], ['ab circuit', 'crunch', ['|min']], ['jump rope', 'rope', ['|min']],
   ['swimming', 'swim', ['|m', 'in|min']], ['stretching', 'stretch', 'T'],
   ['hamstring stretch', 'hamstring', 'T'], ['hip flexor stretch', 'st-hipflexor', 'T'], ['quad stretch', 'st-quad', 'T'], ['calf stretch', 'st-calf', 'T'], ['glute stretch', 'st-glute', 'T'], ['groin stretch', 'st-groin', 'T'], ['lower back stretch', 'st-lowerback', 'T'], ['chest stretch', 'st-chest', 'T'], ['shoulder stretch', 'st-shoulder', 'T'], ['tricep stretch', 'st-tricep', 'T'], ['lat stretch', 'st-lat', 'T'], ['neck stretch', 'st-neck', 'T'],
 ];
@@ -115,6 +115,11 @@ function seedStarters() {
       if (ex && !en.image && en.icon === iconPath('stretch')) en.icon = ex.icon;
     }
     state.seed = 6; save();
+  }
+  if (state.seed < 7) {
+    if (!state.exercises.some((e) => e.name.trim().toLowerCase() === 'ab circuit'))
+      state.exercises.push({ id: uid(), name: 'ab circuit', image: '', icon: iconPath('crunch'), spec: [{ join: '', value: '', unit: 'min' }] });
+    state.seed = 7; save();
   }
 }
 function seedV1() {
