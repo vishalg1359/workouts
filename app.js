@@ -25,7 +25,7 @@ const STARTERS = [
   ['shrugs', 'shrug', 'L'], ['bulgarian split squats', 'split', 'L'], ['front squats', 'squat', 'L'], ['kettlebell swings', 'kb-swing', 'L'], ['turkish get-ups', 'tgu', 'L'],
   ['crunches', 'crunch', 'R'], ['hanging leg raises', 'legraise', 'R'], ['russian twists', 'twist', 'R'], ['jump rope', 'rope', ['|min']],
   ['swimming', 'swim', ['|m', 'in|min']], ['stretching', 'stretch', 'T'],
-  ['hamstring stretch', 'stretch', 'T'], ['hip flexor stretch', 'stretch', 'T'], ['quad stretch', 'stretch', 'T'], ['calf stretch', 'stretch', 'T'], ['glute stretch', 'stretch', 'T'], ['groin stretch', 'stretch', 'T'], ['lower back stretch', 'stretch', 'T'], ['chest stretch', 'stretch', 'T'], ['shoulder stretch', 'stretch', 'T'], ['tricep stretch', 'stretch', 'T'], ['lat stretch', 'stretch', 'T'], ['neck stretch', 'stretch', 'T'],
+  ['hamstring stretch', 'hamstring', 'T'], ['hip flexor stretch', 'st-hipflexor', 'T'], ['quad stretch', 'st-quad', 'T'], ['calf stretch', 'st-calf', 'T'], ['glute stretch', 'st-glute', 'T'], ['groin stretch', 'st-groin', 'T'], ['lower back stretch', 'st-lowerback', 'T'], ['chest stretch', 'st-chest', 'T'], ['shoulder stretch', 'st-shoulder', 'T'], ['tricep stretch', 'st-tricep', 'T'], ['lat stretch', 'st-lat', 'T'], ['neck stretch', 'st-neck', 'T'],
 ];
 const SPEC_SHAPES = { L: ['|sets', '×|reps', 'at|W'], B: ['|sets', '×|reps', '+|W'], R: ['|sets', '×|reps'], T: ['|sets', 'for|sec'] };
 const STARTER_RANK = new Map(STARTERS.map(([n], i) => [n, i]));
@@ -102,6 +102,19 @@ function seedStarters() {
       if (shape === 'T' && /stretch/.test(name) && !have.has(name)) state.exercises.push({ id: uid(), name, image: '', icon: iconPath(file), spec: tSpec() });
     }
     state.seed = 5; save();
+  }
+  if (state.seed < 6) {
+    const files = new Map(STARTERS.filter(([n]) => /stretch/.test(n)).map(([n, f]) => [n, iconPath(f)]));
+    for (const ex of state.exercises) {
+      const f = files.get(ex.name.trim().toLowerCase());
+      if (f && !ex.image && (!ex.icon || ex.icon === iconPath('stretch'))) ex.icon = f;
+    }
+    const byId = new Map(state.exercises.map((e) => [e.id, e]));
+    for (const d of Object.values(state.days)) for (const en of d.entries || []) {
+      const ex = byId.get(en.exerciseId);
+      if (ex && !en.image && en.icon === iconPath('stretch')) en.icon = ex.icon;
+    }
+    state.seed = 6; save();
   }
 }
 function seedV1() {
