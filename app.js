@@ -24,7 +24,8 @@ const STARTERS = [
   ['running', 'run', ['|mi', 'in|min']], ['walking', 'walk', ['|mi', 'in|min']], ['cable fly', 'fly', 'L'], ['face pulls', 'face-pull', 'L'],
   ['shrugs', 'shrug', 'L'], ['bulgarian split squats', 'split', 'L'], ['front squats', 'squat', 'L'], ['kettlebell swings', 'kb-swing', 'L'], ['turkish get-ups', 'tgu', 'L'],
   ['crunches', 'crunch', 'R'], ['hanging leg raises', 'legraise', 'R'], ['russian twists', 'twist', 'R'], ['jump rope', 'rope', ['|min']],
-  ['swimming', 'swim', ['|m', 'in|min']], ['stretching', 'stretch', ['|min']],
+  ['swimming', 'swim', ['|m', 'in|min']], ['stretching', 'stretch', 'T'],
+  ['hamstring stretch', 'stretch', 'T'], ['hip flexor stretch', 'stretch', 'T'], ['quad stretch', 'stretch', 'T'], ['calf stretch', 'stretch', 'T'], ['glute stretch', 'stretch', 'T'], ['groin stretch', 'stretch', 'T'], ['lower back stretch', 'stretch', 'T'], ['chest stretch', 'stretch', 'T'], ['shoulder stretch', 'stretch', 'T'], ['tricep stretch', 'stretch', 'T'], ['lat stretch', 'stretch', 'T'], ['neck stretch', 'stretch', 'T'],
 ];
 const SPEC_SHAPES = { L: ['|sets', '×|reps', 'at|W'], B: ['|sets', '×|reps', '+|W'], R: ['|sets', '×|reps'], T: ['|sets', 'for|sec'] };
 const STARTER_RANK = new Map(STARTERS.map(([n], i) => [n, i]));
@@ -90,6 +91,17 @@ function seedStarters() {
         spec: [{ join: '', value: '', unit: 'sets' }, { join: '×', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
     }
     state.seed = 4; save();
+  }
+  if (state.seed < 5) {
+    const tSpec = () => [{ join: '', value: '', unit: 'sets' }, { join: 'for', value: '', unit: 'sec' }];
+    const have = new Set(state.exercises.map((e) => e.name.trim().toLowerCase()));
+    for (const ex of state.exercises) {
+      if (ex.name.trim().toLowerCase() === 'stretching' && ex.spec && ex.spec.length === 1 && ex.spec[0].unit === 'min') ex.spec = tSpec();
+    }
+    for (const [name, file, shape] of STARTERS) {
+      if (shape === 'T' && /stretch/.test(name) && !have.has(name)) state.exercises.push({ id: uid(), name, image: '', icon: iconPath(file), spec: tSpec() });
+    }
+    state.seed = 5; save();
   }
 }
 function seedV1() {
