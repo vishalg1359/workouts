@@ -555,7 +555,7 @@ function renderDay(key, editable = false) {
       return w;
     })) : null,
     open ? h('button', { class: 'edit-day', onclick: (e) => { e.stopPropagation(); openDaySheet(key); } }, 'Edit day') : null,
-    locked ? null : h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ add exercise'));
+    locked ? null : h('button', { class: 'add-ex', onclick: () => openExercisePicker(key) }, '+ Add exercise'));
 }
 
 function renderRange(from, to) {
