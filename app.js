@@ -213,6 +213,13 @@ function icon(item, size) {
 const cloneSpec = (spec) => (spec || []).map((b) => ({ join: b.join || '', value: b.value || '', unit: b.unit || '' }));
 const blankSpec = (spec) => cloneSpec(spec).map((b) => ({ ...b, value: '' }));
 const weightUnit = () => (state.profile.units === 'metric' ? 'kg' : 'lb');
+// Bodyweight on a given day, from the dated weights saved each time Profile weight changes.
+function bodyweightOn(key) {
+  const p = state.profile;
+  const log = (p.weightLog || []).slice().sort((a, b) => (a.d < b.d ? -1 : 1));
+  const kg = log.length ? (log.filter((x) => x.d <= key).pop() || log[0]).kg : p.weightKg;
+  return kg == null ? null : weightUnit() === 'lb' ? kg * 2.20462 : kg;
+}
 
 function specSummary(spec, blankMark) {
   return (spec || []).map((b, i) => {
@@ -1386,9 +1393,10 @@ function historyMetrics(logs, name = '') {
   const kind = exerciseKind(name, parts.flatMap((p) => p.sets));
   const metrics = [];
   const w = weightUnit();
-  const series = (fn) => parts.map((p) => { const r = fn(p.sets); return r == null ? null : { key: p.key, ...(typeof r === 'number' ? { v: r } : r) }; }).filter(Boolean);
-  const kg = state.profile.weightKg;
-  const bw = kg == null ? null : w === 'lb' ? kg * 2.20462 : kg;
+  let curKey = null;
+  const series = (fn) => parts.map((p) => { curKey = p.key; const r = fn(p.sets); return r == null ? null : { key: p.key, ...(typeof r === 'number' ? { v: r } : r) }; }).filter(Boolean);
+  const bwNow = () => bodyweightOn(curKey);
+  const hasBw = state.profile.weightKg != null || !!(state.profile.weightLog || []).length;
   const repsRows = (ss) => ss.filter((s) => s.reps != null && s.reps > 0);
   const totalReps = { id: 'reps', label: 'Total reps', unit: 'reps', zero: true, pts: series((ss) => { const v = repsRows(ss); return v.length ? v.reduce((a, s) => a + s.sets * s.reps, 0) : null; }) };
   const volume = (load) => ({ id: 'volume', label: 'Volume', unit: w, zero: true, pts: series((ss) => {
@@ -1407,8 +1415,9 @@ function historyMetrics(logs, name = '') {
     }) });
     metrics.push(volume((s) => s.weight), totalReps);
   } else if (kind === 'bw') {
-    if (bw != null) {
-      const load = (s) => bw + (s.weight || 0);
+    if (hasBw) metrics.push(volume((s) => bwNow() + (s.weight || 0)));
+    if (hasBw) {
+      const load = (s) => bwNow() + (s.weight || 0);
       metrics.push({ id: 'strength', label: 'Strength', unit: w, show: (p) => `≈${p.v} ${w} max (est. 1 rep), best set ${p.wt ? `at ${signed(p.wt)} ${w}` : 'at bodyweight'}`, pts: series((ss) => {
         const v = repsRows(ss).filter((s) => load(s) > 0).map((s) => ({ s, e: Math.round(s.reps > 1 ? load(s) * (1 + s.reps / 30) : load(s)) }));
         if (!v.length) return null;
@@ -1427,7 +1436,6 @@ function historyMetrics(logs, name = '') {
     metrics.push({ id: 'weight', label: 'Added weight', unit: w, span: 25, fmt: (v) => signed(v),
       show: (p) => (p.v < 0 ? `assist ${r1(-p.v)} ${w}` : p.v === 0 ? 'bodyweight' : `+${r1(p.v)} ${w}`),
       pts: series((ss) => { const v = ss.filter((s) => s.reps != null).map((s) => s.weight || 0); return v.length ? { v: Math.max(...v), subs: v } : null; }) });
-    if (bw != null) metrics.push(volume((s) => bw + (s.weight || 0)));
   } else if (kind === 'reps') {
     metrics.push({ id: 'bestreps', label: 'Best set', unit: 'reps', zero: true, pts: series((ss) => {
       const v = repsRows(ss).map((s) => s.reps);
@@ -1465,8 +1473,13 @@ function historyMetrics(logs, name = '') {
     }) });
   }
   const out = metrics.filter((m) => m.pts.length);
-  const pref = { lift: ['best', 'weight'], bw: ['strength', 'bwreps'], reps: ['bestreps'], hold: ['longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
-  if (kind === 'bw' && bw == null) out.note = 'Add your weight in Profile to see Strength and Volume.';
+  const pref = { lift: ['best', 'weight'], bw: ['volume', 'strength', 'bwreps'], reps: ['bestreps'], hold: ['longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
+  if (kind === 'bw' && !hasBw) out.note = 'Add your weight in Profile to see Volume and Strength.';
+  else if (kind === 'bw') {
+    const lastD = (state.profile.weightLog || []).map((x) => x.d).filter(Boolean).sort().pop();
+    if (!lastD || (dateOf(todayKey()) - dateOf(lastD)) / 864e5 > 30)
+      out.note = `Bodyweight last updated ${lastD ? fmt(dateOf(lastD), { month: 'short', day: 'numeric' }) : 'over a month ago'}. Keep it current so Volume and Strength stay accurate.`;
+  }
   out.def = (pref.map((id) => out.find((m) => m.id === id)).find(Boolean) || out[0] || {}).id;
   return out;
 }
@@ -1577,7 +1590,7 @@ function openHistory(ex) {
     h('button', { class: 'btn small', onclick: () => openExerciseForm(ex) }, 'Edit exercise'),
     logs.length ? null : h('p', { class: 'hint' }, 'No history yet. Log this exercise on a day and it shows up here.'),
     allMetrics.length ? h('div', { class: 'hbox' }, chips, readout, chartWrap, ranges) : null,
-    allMetrics.note ? h('p', { class: 'hint' }, allMetrics.note) : null,
+    allMetrics.note ? h('p', { class: 'hint' }, allMetrics.note, ' ', h('button', { class: 'btn small', onclick: () => { closeSheet(); showView('profile'); } }, 'Update weight')) : null,
     rows);
 }
 const exSearch = document.getElementById('exercise-search');
@@ -1660,7 +1673,17 @@ function renderProfile() {
       numInput(inch, 'in', (v) => { inch = v; update(); }));
   }
   const weight = numInput(p.weightKg == null ? null : round1(metric ? p.weightKg : p.weightKg * 2.20462), metric ? 'kg' : 'lb',
-    (v) => { const n = num(v); p.weightKg = n == null ? null : (metric ? n : n / 2.20462); save(); });
+    (v) => {
+      const n = num(v); const old = p.weightKg;
+      p.weightKg = n == null ? null : (metric ? n : n / 2.20462);
+      if (p.weightKg != null) {
+        const t = todayKey();
+        const log = p.weightLog || [];
+        if (!log.length && old != null) log.push({ d: '', kg: old });
+        p.weightLog = [...log.filter((x) => x.d !== t), { d: t, kg: p.weightKg }];
+      }
+      save();
+    });
 
   const row = (label, control) => h('div', { class: 'prow' }, h('span', { class: 'plabel' }, label), h('div', { class: 'pctl' }, control));
   root.append(
