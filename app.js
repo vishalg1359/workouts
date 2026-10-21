@@ -1415,7 +1415,19 @@ function historyMetrics(logs, name = '') {
     }) });
     metrics.push(volume((s) => s.weight), totalReps);
   } else if (kind === 'bw') {
-    if (hasBw) metrics.push(volume((s) => bwNow() + (s.weight || 0)));
+    // Volume = reps × BW + reps × added weight. BW is a stand-in when no weight is in Profile.
+    const stand = w === 'lb' ? 170 : 77;
+    const bwFmt = (v) => `${r1(v / stand)} BW`;
+    metrics.push({ id: 'volume', label: 'Volume', unit: w, zero: true, fmt: hasBw ? null : bwFmt,
+      show: (p) => `${p.reps} × BW${p.add ? ` ${p.add > 0 ? '+' : '−'} ${Math.abs(p.add)} ${w}` : ''}${p.real != null ? ` (≈${p.real} ${w})` : ''}`,
+      pts: series((ss) => {
+        const v = repsRows(ss);
+        if (!v.length) return null;
+        const reps = v.reduce((a, s) => a + s.sets * s.reps, 0);
+        const add = Math.round(v.reduce((a, s) => a + s.sets * s.reps * (s.weight || 0), 0));
+        const b = hasBw ? bwNow() : stand;
+        return { v: Math.round(reps * b + add), reps, add, real: hasBw ? Math.round(reps * b + add) : null, label: `${reps} BW`, tag: add ? signed(add) : '' };
+      }) });
     if (hasBw) {
       const load = (s) => bwNow() + (s.weight || 0);
       metrics.push({ id: 'strength', label: 'Strength', unit: w, show: (p) => `≈${p.v} ${w} max (est. 1 rep), best set ${p.wt ? `at ${signed(p.wt)} ${w}` : 'at bodyweight'}`, pts: series((ss) => {
@@ -1474,7 +1486,7 @@ function historyMetrics(logs, name = '') {
   }
   const out = metrics.filter((m) => m.pts.length);
   const pref = { lift: ['best', 'weight'], bw: ['volume', 'strength', 'bwreps'], reps: ['bestreps'], hold: ['longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
-  if (kind === 'bw' && !hasBw) out.note = 'Add your weight in Profile to see Volume and Strength.';
+  if (kind === 'bw' && !hasBw) out.note = 'BW = your bodyweight. Add your weight in Profile to also see Volume in lb and the Strength graph.';
   else if (kind === 'bw') {
     const lastD = (state.profile.weightLog || []).map((x) => x.d).filter(Boolean).sort().pop();
     if (!lastD || (dateOf(todayKey()) - dateOf(lastD)) / 864e5 > 30)
@@ -1529,7 +1541,7 @@ function historyChart(metric, onPick) {
     g.append(el('circle', { cx, cy: cy, r: 14, class: 'hhit' }), el('circle', { cx, cy, r: 4.5, class: 'hpt' }));
     if (pts.length <= 12 || i === hiI || i === loI || i === pts.length - 1) {
       const tx = Math.min(W - R - 6, Math.max(L + 6, cx));
-      g.append(el('text', { x: tx, y: cy - 9, class: 'hval', 'text-anchor': 'middle' }, fmtV(p.v)));
+      g.append(el('text', { x: tx, y: cy - 9, class: 'hval', 'text-anchor': 'middle' }, p.label || fmtV(p.v)));
       if (p.tag) g.append(el('text', { x: tx, y: cy + 16, class: 'htag', 'text-anchor': 'middle' }, p.tag));
     }
     g.addEventListener('click', () => onPick(p));
