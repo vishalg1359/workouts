@@ -678,3 +678,6 @@ body { background: radial-gradient(120% 340px at 50% -60px, var(--glow), transpa
 .hrange { flex: 1; padding: 5px 0; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .hrange.on { background: var(--card); color: var(--fg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
 .hempty { margin: 0; padding: 48px 0; text-align: center; }
+/* Empty day: + Add exercise in the middle of the screen */
+#today.typed .daybox:not(.has) { display: flex; flex-direction: column; justify-content: center; }
+.welcome .add-ex { margin: 22px 0 0; padding: 12px 22px; min-width: 220px; font-size: 16px; text-align: center; border-radius: 12px; }
