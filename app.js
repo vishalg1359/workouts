@@ -573,7 +573,7 @@ function renderDay(key, editable = false) {
   const locked = !editable;
   const named = day && day.name.trim();
   const folded = locked && (past || isToday) && entries.length > 0;
-  const open = folded && expandedDays.has(key);
+  const open = folded && expandAll !== expandedDays.has(key);
   const head = locked
     ? h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
@@ -582,7 +582,7 @@ function renderDay(key, editable = false) {
     : h('div', { class: 'dhead' },
         h('span', { class: 'ddate' }, label),
         dayTypeButton(key, day));
-  const toggle = () => { if (open) expandedDays.delete(key); else expandedDays.add(key); refreshDay(key); };
+  const toggle = () => { if (!expandedDays.delete(key)) expandedDays.add(key); refreshDay(key); };
   return h('div', { class: `day${isToday ? ' today' : ''}${past ? ' past' : ''}${!past && !isToday ? ' future' : ''}${rest ? ' rest' : ''}${entries.length ? ' has' : ''}${color ? ' tinted' : ''}${folded ? ' folded' : ''}${open ? ' open' : ''}`,
     style: color ? `--day:${color}` : null, 'data-anchor': key, 'data-key': key, onclick: folded ? toggle : locked ? () => openDaySheet(key) : null },
     head,
@@ -647,6 +647,7 @@ function dayTypeButton(key, day) {
 }
 // Past workout days start collapsed each time the app opens; tapping one expands it in place.
 const expandedDays = new Set();
+let expandAll = (() => { try { return localStorage.getItem('workouts.expandAll') === '1'; } catch (_) { return false; } })();
 function openDaySheet(key) {
   const day = getDay(key);
   const entries = day ? day.entries : [];
@@ -753,11 +754,27 @@ function setCalMode(mode, quiet) {
   document.getElementById('cal-toggle').innerHTML = grid ? LIST_ICON : GRID_ICON;
   document.getElementById('cal-toggle').setAttribute('aria-label', grid ? 'List view' : 'Month view');
   document.getElementById('view-log').classList.toggle('grid-mode', grid);
+  paintExpandToggle();
   if (quiet) return;
   if (grid) renderMonthGrid(todayKey());
   else requestAnimationFrame(() => { scrollToToday(false); updateTitle(); });
 }
 document.getElementById('cal-toggle').addEventListener('click', () => setCalMode(calMode === 'grid' ? 'list' : 'grid'));
+// Opens or closes every past workout in the list at once; tapping a day still flips just that one.
+const OPEN_ALL_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></svg>';
+const CLOSE_ALL_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l5 5 5-5M7 20l5-5 5 5"/></svg>';
+function paintExpandToggle() {
+  const b = document.getElementById('expand-toggle');
+  b.innerHTML = expandAll ? CLOSE_ALL_ICON : OPEN_ALL_ICON;
+  b.setAttribute('aria-label', expandAll ? 'Close all days' : 'Open all days');
+  b.hidden = calMode === 'grid';
+}
+document.getElementById('expand-toggle').addEventListener('click', () => {
+  expandAll = !expandAll; expandedDays.clear();
+  try { localStorage.setItem('workouts.expandAll', expandAll ? '1' : '0'); } catch (_) {}
+  paintExpandToggle(); keepAnchor(renderFeed);
+});
+paintExpandToggle();
 
 // The Today tab shows one day: today by default, or an earlier day picked from the title (never the future).
 let viewDay = null;
