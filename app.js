@@ -895,6 +895,7 @@ function renderToday() {
   root.replaceChildren(renderDay(key, true), last || '');
   syncWelcome();
   renderTodayType();
+  renderTimer();
   sizeTodayBox();
 }
 function syncWelcome() {
@@ -921,6 +922,49 @@ function syncWelcome() {
       }),
       h('button', { class: 'wpick more', onclick: () => openPresetPicker(key) }, 'Other…'))));
 }
+// Workout timer (Today only): { day, start: ms of the running stretch or null when paused, acc: ms before it }.
+const TIMER_KEY = 'workouts.timer';
+const getTimer = () => { try { return JSON.parse(localStorage.getItem(TIMER_KEY)) || null; } catch (_) { return null; } };
+const setTimer = (t) => { try { t ? localStorage.setItem(TIMER_KEY, JSON.stringify(t)) : localStorage.removeItem(TIMER_KEY); } catch (_) {} };
+const timerMs = (t) => t.acc + (t.start ? Date.now() - t.start : 0);
+const clock = (ms) => {
+  const s = Math.floor(ms / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60, ss = String(s % 60).padStart(2, '0');
+  return hh ? `${hh}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
+};
+const PLAY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>';
+const PAUSE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>';
+function renderTimer() {
+  const el = document.getElementById('wtimer');
+  if (!el) return;
+  const key = todayKey();
+  el.hidden = dayViewKey() !== key;
+  if (el.hidden) return;
+  const t = getTimer();
+  const btn = (label, cls, icon, fn) => { const b = h('button', { class: `wtbtn ${cls}`, onclick: () => { fn(); renderTimer(); } }); b.innerHTML = icon || ''; b.append(label); return b; };
+  if (!t) {
+    const secs = (getDay(key) || {}).secs;
+    el.replaceChildren(
+      h('span', { class: 'wt-time done' }, secs ? `Worked out ${clock(secs * 1000)}` : ''),
+      btn(secs ? 'Start again' : 'Start', 'go', PLAY_ICON, () => setTimer({ day: key, start: Date.now(), acc: 0 })));
+  } else if (t.start) {
+    el.replaceChildren(h('span', { class: 'wt-time' }, clock(timerMs(t))),
+      btn('Pause', '', PAUSE_ICON, () => setTimer({ ...t, start: null, acc: timerMs(t) })));
+  } else {
+    el.replaceChildren(h('span', { class: 'wt-time paused' }, clock(t.acc)),
+      btn('Restart', '', '', () => setTimer({ ...t, start: Date.now(), acc: 0 })),
+      btn('Continue', 'go', PLAY_ICON, () => setTimer({ ...t, start: Date.now() })),
+      btn('End', 'end', '', () => {
+        const d = ensureDay(t.day);
+        d.secs = (d.secs || 0) + Math.round(t.acc / 1000);
+        setTimer(null);
+        save();
+      }));
+  }
+}
+setInterval(() => {
+  const t = getTimer(), el = document.getElementById('wtimer');
+  if (t && t.start && el && !el.hidden && !document.hidden) { const c = el.querySelector('.wt-time'); if (c) c.textContent = clock(timerMs(t)); }
+}, 1000);
 function renderTodayType() {
   const slot = document.getElementById('today-type');
   const dt = document.querySelector('#today .dhead .daytype');

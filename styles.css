@@ -683,3 +683,15 @@ body { background: radial-gradient(120% 340px at 50% -60px, var(--glow), transpa
 .hval { fill: var(--fg); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
 .htag { fill: var(--accent); font-size: 9.5px; font-weight: 700; pointer-events: none; }
 .hsets { margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--muted); }
+
+/* Workout timer under the Today title */
+#view-today .topbar { flex-wrap: wrap; }
+.wtimer { flex-basis: 100%; display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.wtimer[hidden] { display: none; }
+.wt-time { margin-right: auto; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.wt-time.paused, .wt-time.done { color: var(--muted); }
+.wt-time.done { font-size: 15px; font-weight: 600; }
+.wtbtn { height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; font-size: 15px; font-weight: 600; }
+.wtbtn.go { background: var(--accent); border-color: transparent; color: #fff; }
+.wtbtn.end { color: #ef4444; }
+.wtbtn svg { width: 13px; height: 13px; fill: currentColor; }
