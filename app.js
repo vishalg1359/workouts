@@ -1421,6 +1421,7 @@ function historyMetrics(logs, name = '') {
     return v.length ? Math.round(v.reduce((a, s) => a + s.sets * s.reps * load(s), 0)) : null;
   }) });
   if (kind === 'lift') {
+    metrics.push(volume((s) => s.weight));
     const e1 = (s) => Math.round(s.reps > 1 ? s.weight * (1 + s.reps / 30) : s.weight);
     metrics.push({ id: 'best', label: 'Best set', unit: w, show: (p) => `≈${p.v} ${w} max (est. 1 rep)`, pts: series((ss) => {
       const v = ss.filter((s) => s.weight > 0 && s.reps > 0).map(e1);
@@ -1430,7 +1431,7 @@ function historyMetrics(logs, name = '') {
       const v = ss.map((s) => s.weight).filter((x) => x != null && x > 0);
       return v.length ? { v: Math.max(...v), subs: v } : null;
     }) });
-    metrics.push(volume((s) => s.weight), totalReps);
+    metrics.push(totalReps);
   } else if (kind === 'bw') {
     metrics.push(hasBw ? (() => { const m = volume((s) => bwNow() + (s.weight || 0)); m.pts.forEach((p) => { p.bw = Math.round(bodyweightOn(p.key)); }); m.show = (p) => `${p.v.toLocaleString()} ${w} · using ${p.bw} ${w} bodyweight`; return m; })() : { id: 'volume', label: 'Volume', unit: w, pts: [], msg: 'Add your weight in Profile to see Volume.' });
     if (hasBw) {
@@ -1454,10 +1455,10 @@ function historyMetrics(logs, name = '') {
       show: (p) => (p.v < 0 ? `assist ${r1(-p.v)} ${w}` : p.v === 0 ? 'bodyweight' : `+${r1(p.v)} ${w}`),
       pts: series((ss) => { const v = ss.filter((s) => s.reps != null).map((s) => s.weight || 0); return v.length ? { v: Math.max(...v), subs: v } : null; }) });
   } else if (kind === 'reps') {
-    metrics.push({ id: 'bestreps', label: 'Best set', unit: 'reps', zero: true, pts: series((ss) => {
+    metrics.push(totalReps, { id: 'bestreps', label: 'Best set', unit: 'reps', zero: true, pts: series((ss) => {
       const v = repsRows(ss).map((s) => s.reps);
       return v.length ? { v: Math.max(...v), subs: v } : null;
-    }) }, totalReps);
+    }) });
   }
   const timeUnit = kind === 'hold' || kind === 'stretch' ? 'sec' : kind === 'time' ? 'min' : null;
   if (timeUnit) {
@@ -1470,7 +1471,7 @@ function historyMetrics(logs, name = '') {
       const v = rows(ss);
       return v.length ? r1(v.reduce((a, s) => a + s.sets * s.units[timeUnit], 0)) : null;
     }) };
-    if (kind === 'hold') metrics.push(longest, total);
+    if (kind === 'hold') metrics.push(total, longest);
     else metrics.push(total);
   }
   const units = [...new Set(parts.flatMap((p) => p.sets.flatMap((s) => Object.keys(s.units))))].filter((u) => u !== timeUnit)
@@ -1490,7 +1491,7 @@ function historyMetrics(logs, name = '') {
     }) });
   }
   const out = metrics.filter((m) => m.pts.length || m.msg);
-  const pref = { lift: ['best', 'weight'], bw: ['volume', 'strength', 'bwreps'], reps: ['bestreps'], hold: ['longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
+  const pref = { lift: ['volume', 'best', 'weight'], bw: ['volume', 'strength', 'bwreps'], reps: ['reps', 'bestreps'], hold: ['total', 'longest'], stretch: ['total'], time: ['total'], cardio: ['u:min', 'u:mi', 'u:km', 'u:m'] }[kind];
   if (kind === 'bw' && !hasBw) out.note = 'Add your weight in Profile to see Volume and Strength.';
   else if (kind === 'bw') {
     const lastD = (state.profile.weightLog || []).map((x) => x.d).filter(Boolean).sort().pop();
