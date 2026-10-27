@@ -895,7 +895,6 @@ function renderToday() {
   root.replaceChildren(renderDay(key, true), last || '');
   syncWelcome();
   renderTodayType();
-  renderTimer();
   sizeTodayBox();
 }
 function syncWelcome() {
@@ -933,32 +932,35 @@ const clock = (ms) => {
 };
 const PLAY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>';
 const PAUSE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>';
+const RESTART_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ln"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4h4"/></svg>';
+const STOP_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 function renderTimer() {
   const el = document.getElementById('wtimer');
   if (!el) return;
   const key = todayKey();
-  el.hidden = dayViewKey() !== key;
+  el.hidden = dayViewKey() !== key || !document.getElementById('today').classList.contains('typed');
+  el.parentElement.classList.toggle('timed', !el.hidden);
   if (el.hidden) return;
   const t = getTimer();
-  const btn = (label, cls, icon, fn) => { const b = h('button', { class: `wtbtn ${cls}`, onclick: () => { fn(); renderTimer(); } }); b.innerHTML = icon || ''; b.append(label); return b; };
+  const btn = (label, cls, icon, fn) => { const b = h('button', { class: `wtbtn ${cls}`, 'aria-label': label, onclick: () => { fn(); renderTimer(); } }); b.innerHTML = icon; return b; };
+  const time = (txt, cls = '') => h('span', { class: `wt-time ${cls}` }, txt);
   if (!t) {
     const secs = (getDay(key) || {}).secs;
-    el.replaceChildren(
-      h('span', { class: 'wt-time done' }, secs ? `Worked out ${clock(secs * 1000)}` : ''),
-      btn(secs ? 'Start again' : 'Start', 'go', PLAY_ICON, () => setTimer({ day: key, start: Date.now(), acc: 0 })));
+    el.replaceChildren(secs ? time(clock(secs * 1000), 'done') : '',
+      h('div', { class: 'wt-btns' }, btn('Start', 'go', PLAY_ICON, () => setTimer({ day: key, start: Date.now(), acc: 0 }))));
   } else if (t.start) {
-    el.replaceChildren(h('span', { class: 'wt-time' }, clock(timerMs(t))),
-      btn('Pause', '', PAUSE_ICON, () => setTimer({ ...t, start: null, acc: timerMs(t) })));
+    el.replaceChildren(time(clock(timerMs(t))),
+      h('div', { class: 'wt-btns' }, btn('Pause', '', PAUSE_ICON, () => setTimer({ ...t, start: null, acc: timerMs(t) }))));
   } else {
-    el.replaceChildren(h('span', { class: 'wt-time paused' }, clock(t.acc)),
-      btn('Restart', '', '', () => setTimer({ ...t, start: Date.now(), acc: 0 })),
+    el.replaceChildren(time(clock(t.acc), 'paused'), h('div', { class: 'wt-btns' },
+      btn('Restart', '', RESTART_ICON, () => setTimer({ ...t, start: Date.now(), acc: 0 })),
       btn('Continue', 'go', PLAY_ICON, () => setTimer({ ...t, start: Date.now() })),
-      btn('End', 'end', '', () => {
+      btn('End', 'end', STOP_ICON, () => {
         const d = ensureDay(t.day);
         d.secs = (d.secs || 0) + Math.round(t.acc / 1000);
         setTimer(null);
         save();
-      }));
+      })));
   }
 }
 setInterval(() => {
@@ -971,6 +973,7 @@ function renderTodayType() {
   if (slot && dt) slot.replaceChildren(dt);
   const cur = slot && slot.querySelector('.daytype');
   document.getElementById('today').classList.toggle('typed', !!cur && !cur.classList.contains('empty'));
+  renderTimer();
 }
 
 function scrollToKey(key, smooth, alignEnd) {

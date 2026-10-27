@@ -684,14 +684,17 @@ body { background: radial-gradient(120% 340px at 50% -60px, var(--glow), transpa
 .htag { fill: var(--accent); font-size: 9.5px; font-weight: 700; pointer-events: none; }
 .hsets { margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--muted); }
 
-/* Workout timer under the Today title */
-#view-today .topbar { flex-wrap: wrap; }
-.wtimer { flex-basis: 100%; display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+/* Workout timer between the Today title and the day type */
+.wtimer { flex: none; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .wtimer[hidden] { display: none; }
-.wt-time { margin-right: auto; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.wt-time { font-size: 13px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .wt-time.paused, .wt-time.done { color: var(--muted); }
-.wt-time.done { font-size: 15px; font-weight: 600; }
-.wtbtn { height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; font-size: 15px; font-weight: 600; }
+.wt-btns { display: flex; gap: 3px; }
+.wtbtn { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
 .wtbtn.go { background: var(--accent); border-color: transparent; color: #fff; }
 .wtbtn.end { color: #ef4444; }
 .wtbtn svg { width: 13px; height: 13px; fill: currentColor; }
+.wtbtn svg.ln { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+#view-today .topbar.timed .today-type .daytype { font-size: 17px; }
+#view-today .topbar.timed .day-title { font-size: 24px; }
+#view-today .topbar.timed .today-type { margin-right: 4px; }
