@@ -957,7 +957,7 @@ function renderTimer() {
       btn('Continue', 'go', PLAY_ICON, () => setTimer({ ...t, start: Date.now() })),
       btn('End', 'end', STOP_ICON, () => {
         const d = ensureDay(t.day);
-        d.secs = (d.secs || 0) + Math.round(t.acc / 1000);
+        d.secs = Math.round(t.acc / 1000);
         setTimer(null);
         save();
       })));
