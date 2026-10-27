@@ -946,14 +946,14 @@ function renderTimer() {
   const time = (txt, cls = '') => h('span', { class: `wt-time ${cls}` }, txt);
   if (!t) {
     const secs = (getDay(key) || {}).secs;
-    el.replaceChildren(secs ? time(clock(secs * 1000), 'done') : '',
-      h('div', { class: 'wt-btns' }, btn('Start', 'go', PLAY_ICON, () => setTimer({ day: key, start: Date.now(), acc: 0 }))));
+    el.replaceChildren(time(clock((secs || 0) * 1000), secs ? 'done' : 'paused'),
+      h('div', { class: 'wt-btns' }, btn('Start', 'go', PLAY_ICON, () => setTimer({ day: key, start: Date.now(), acc: (secs || 0) * 1000 }))));
   } else if (t.start) {
     el.replaceChildren(time(clock(timerMs(t))),
       h('div', { class: 'wt-btns' }, btn('Pause', '', PAUSE_ICON, () => setTimer({ ...t, start: null, acc: timerMs(t) }))));
   } else {
     el.replaceChildren(time(clock(t.acc), 'paused'), h('div', { class: 'wt-btns' },
-      btn('Restart', '', RESTART_ICON, () => setTimer({ ...t, start: Date.now(), acc: 0 })),
+      btn('Restart', '', RESTART_ICON, () => { setTimer(null); const d = getDay(t.day); if (d && d.secs) { delete d.secs; save(); } }),
       btn('Continue', 'go', PLAY_ICON, () => setTimer({ ...t, start: Date.now() })),
       btn('End', 'end', STOP_ICON, () => {
         const d = ensureDay(t.day);
