@@ -921,59 +921,12 @@ function syncWelcome() {
       }),
       h('button', { class: 'wpick more', onclick: () => openPresetPicker(key) }, 'Other…'))));
 }
-// Workout timer (Today only): { day, start: ms of the running stretch or null when paused, acc: ms before it }.
-const TIMER_KEY = 'workouts.timer';
-const getTimer = () => { try { return JSON.parse(localStorage.getItem(TIMER_KEY)) || null; } catch (_) { return null; } };
-const setTimer = (t) => { try { t ? localStorage.setItem(TIMER_KEY, JSON.stringify(t)) : localStorage.removeItem(TIMER_KEY); } catch (_) {} };
-const timerMs = (t) => t.acc + (t.start ? Date.now() - t.start : 0);
-const clock = (ms) => {
-  const s = Math.floor(ms / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60, ss = String(s % 60).padStart(2, '0');
-  return hh ? `${hh}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
-};
-const PLAY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>';
-const PAUSE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>';
-const RESTART_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ln"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4h4"/></svg>';
-const STOP_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-function renderTimer() {
-  const el = document.getElementById('wtimer');
-  if (!el) return;
-  const key = todayKey();
-  el.hidden = dayViewKey() !== key || !document.getElementById('today').classList.contains('typed');
-  el.parentElement.classList.toggle('timed', !el.hidden);
-  if (el.hidden) return;
-  const t = getTimer();
-  const btn = (label, cls, icon, fn) => { const b = h('button', { class: `wtbtn ${cls}`, 'aria-label': label, onclick: () => { fn(); renderTimer(); } }); b.innerHTML = icon; return b; };
-  const time = (txt, cls = '') => h('span', { class: `wt-time ${cls}` }, txt);
-  if (!t) {
-    const secs = (getDay(key) || {}).secs;
-    el.replaceChildren(time(clock((secs || 0) * 1000), secs ? 'done' : 'paused'),
-      h('div', { class: 'wt-btns' }, btn('Start', 'go', PLAY_ICON, () => setTimer({ day: key, start: Date.now(), acc: (secs || 0) * 1000 }))));
-  } else if (t.start) {
-    el.replaceChildren(time(clock(timerMs(t))),
-      h('div', { class: 'wt-btns' }, btn('Pause', '', PAUSE_ICON, () => setTimer({ ...t, start: null, acc: timerMs(t) }))));
-  } else {
-    el.replaceChildren(time(clock(t.acc), 'paused'), h('div', { class: 'wt-btns' },
-      btn('Restart', '', RESTART_ICON, () => { setTimer(null); const d = getDay(t.day); if (d && d.secs) { delete d.secs; save(); } }),
-      btn('Continue', 'go', PLAY_ICON, () => setTimer({ ...t, start: Date.now() })),
-      btn('End', 'end', STOP_ICON, () => {
-        const d = ensureDay(t.day);
-        d.secs = Math.round(t.acc / 1000);
-        setTimer(null);
-        save();
-      })));
-  }
-}
-setInterval(() => {
-  const t = getTimer(), el = document.getElementById('wtimer');
-  if (t && t.start && el && !el.hidden && !document.hidden) { const c = el.querySelector('.wt-time'); if (c) c.textContent = clock(timerMs(t)); }
-}, 1000);
 function renderTodayType() {
   const slot = document.getElementById('today-type');
   const dt = document.querySelector('#today .dhead .daytype');
   if (slot && dt) slot.replaceChildren(dt);
   const cur = slot && slot.querySelector('.daytype');
   document.getElementById('today').classList.toggle('typed', !!cur && !cur.classList.contains('empty'));
-  renderTimer();
 }
 
 function scrollToKey(key, smooth, alignEnd) {
