@@ -13,7 +13,7 @@ The app opens full screen and works offline from then on. It doesn't expire and 
 ## Features
 - **Log tab:** older days are above, today is in the middle, and upcoming days are below. Days with workouts appear as large cards. Runs of empty days shrink to one thin line; tap it to open those days. **Go to date** jumps to any day.
 - **Day names:** type a name right next to the date, or pick one from the ▾ list (Upper Day, Lower Day, …). You can edit that list.
-- **Exercises tab:** holds only the exercises you create. Each one is built from blocks, e.g. `[3] sets × [ ] reps at [ ] lb`: a number box (blank or with a default) plus a unit dropdown (sets, reps, lb, kg, sec, min, … or any custom word). Pictures are optional; choose one from Photos (saved as a tiny ~5 KB icon) or paste a link.
+- **Exercises tab:** holds only the exercises you create. Each one is built from blocks, e.g. `[ ] reps at [ ] lb`: a number box (blank or with a default) plus a unit dropdown (reps, lb, kg, sec, min, … or any custom word). Pictures are optional; choose one from Photos (saved as a tiny ~5 KB icon) or paste a link.
 - **Logging:** tap **+ Add exercise** on a day, pick one of your exercises, then fill in the blank numbers and switch units right on the card.
 - **Profile tab:** name, birthday/age, height, weight, units (lb·ft / kg·cm), Light/Dark/Auto appearance, colors, and GitHub backup.
 

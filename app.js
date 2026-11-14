@@ -4,7 +4,7 @@ const STORE_KEY = 'workouts.v1';
 const DEFAULT_PRESETS = ['Upper Day', 'Lower Day', 'Push Day', 'Pull Day', 'Leg Day', 'Mobility Day'];
 const DEFAULT_PRESET_COLORS = { 'upper day': '#2563eb', 'lower day': '#16a34a', 'push day': '#dc2626', 'pull day': '#7c3aed', 'leg day': '#d97706', 'mobility day': '#0d9488' };
 const DEFAULT_PROFILE = { name: '', birthday: '', units: 'imperial', heightCm: null, weightKg: null, theme: 'auto', accent: '#1e40af' };
-const UNITS = ['sets', 'reps', 'lb', 'kg', 'sec', 'min', 'hr', 'mi', 'km', 'm', 'rounds', 'cal'];
+const UNITS = ['reps', 'lb', 'kg', 'sec', 'min', 'hr', 'mi', 'km', 'm', 'rounds', 'cal'];
 const JOINS = ['×', 'at', 'for', 'in', '@', 'of', '+', '−', '/'];
 const PREFIX_UNITS = new Set(['level']);
 const SIGNS = { '+': '−', '−': '+' };
@@ -27,7 +27,7 @@ const STARTERS = [
   ['swimming', 'swim', ['|m', 'in|min']], ['stretching', 'stretch', 'T'],
   ['hamstring stretch', 'hamstring', 'T'], ['hip flexor stretch', 'st-hipflexor', 'T'], ['quad stretch', 'st-quad', 'T'], ['calf stretch', 'st-calf', 'T'], ['glute stretch', 'st-glute', 'T'], ['groin stretch', 'st-groin', 'T'], ['lower back stretch', 'st-lowerback', 'T'], ['chest stretch', 'st-chest', 'T'], ['shoulder stretch', 'st-shoulder', 'T'], ['tricep stretch', 'st-tricep', 'T'], ['lat stretch', 'st-lat', 'T'], ['neck stretch', 'st-neck', 'T'],
 ];
-const SPEC_SHAPES = { L: ['|sets', '×|reps', 'at|W'], B: ['|sets', '×|reps', '+|W'], R: ['|sets', '×|reps'], T: ['|sets', 'for|sec'] };
+const SPEC_SHAPES = { L: ['|reps', 'at|W'], B: ['|reps', '+|W'], R: ['|reps'], T: ['|sec'] };
 const STARTER_RANK = new Map(STARTERS.map(([n], i) => [n, i]));
 const iconPath = (file) => `icons/${file.includes('.') ? file : `${file}.svg`}`;
 const OTHER = '\u0000other';
@@ -74,7 +74,7 @@ function seedStarters() {
   if (state.seed < 3) {
     if (state.seed >= 1 && !state.exercises.some((e) => e.name.trim().toLowerCase() === 'machine chest press')) {
       state.exercises.push({ id: uid(), name: 'machine chest press', image: '', icon: iconPath('chest-press'),
-        spec: [{ join: '', value: '', unit: 'sets' }, { join: '×', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
+        spec: [{ join: '', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
     }
   }
   if (state.seed < 2) {
@@ -88,12 +88,12 @@ function seedStarters() {
   if (state.seed < 4) {
     if (!state.exercises.some((e) => e.name.trim().toLowerCase() === 'turkish get-ups')) {
       state.exercises.push({ id: uid(), name: 'turkish get-ups', image: '', icon: iconPath('tgu'),
-        spec: [{ join: '', value: '', unit: 'sets' }, { join: '×', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
+        spec: [{ join: '', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
     }
     state.seed = 4; save();
   }
   if (state.seed < 5) {
-    const tSpec = () => [{ join: '', value: '', unit: 'sets' }, { join: 'for', value: '', unit: 'sec' }];
+    const tSpec = () => [{ join: '', value: '', unit: 'sec' }];
     const have = new Set(state.exercises.map((e) => e.name.trim().toLowerCase()));
     for (const ex of state.exercises) {
       if (ex.name.trim().toLowerCase() === 'stretching' && ex.spec && ex.spec.length === 1 && ex.spec[0].unit === 'min') ex.spec = tSpec();
@@ -125,8 +125,18 @@ function seedStarters() {
     for (const name of ['hip abductor', 'hip adductor'])
       if (!state.exercises.some((e) => e.name.trim().toLowerCase() === name))
         state.exercises.push({ id: uid(), name, image: '', icon: iconPath('legext'),
-          spec: [{ join: '', value: '', unit: 'sets' }, { join: '×', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
+          spec: [{ join: '', value: '', unit: 'reps' }, { join: 'at', value: '', unit: weightUnit() }] });
     state.seed = 8; save();
+  }
+  // Sets are tracked as separate rows, so exercises no longer have a "sets" block. Logged days keep theirs.
+  if (state.seed < 9) {
+    for (const ex of state.exercises) {
+      if (!Array.isArray(ex.spec)) continue;
+      ex.spec = ex.spec.filter((b) => b.unit !== 'sets');
+      if (ex.spec[0]) ex.spec[0].join = '';
+    }
+    state.units = state.units.filter((u) => u !== 'sets');
+    state.seed = 9; save();
   }
 }
 function seedV1() {
@@ -209,7 +219,7 @@ function icon(item, size) {
 }
 
 // ---------- spec blocks ----------
-// A spec is a list of blocks: { join, value, unit }. e.g. [ {'',3,'sets'}, {'×','','reps'}, {'at','','lb'} ]
+// A spec is a list of blocks: { join, value, unit }. e.g. [ {'','','reps'}, {'at','','lb'} ]
 const cloneSpec = (spec) => (spec || []).map((b) => ({ join: b.join || '', value: b.value || '', unit: b.unit || '' }));
 const blankSpec = (spec) => cloneSpec(spec).map((b) => ({ ...b, value: '' }));
 const weightUnit = () => (state.profile.units === 'metric' ? 'kg' : 'lb');
@@ -354,14 +364,14 @@ function blockEditor(spec) {
         h('label', { class: 'bdef' }, h('span', {}, 'default'), def),
         h('button', { class: 'x', 'aria-label': 'Remove block', onclick: () => { spec.splice(i, 1); draw(); } }, '×')));
     });
-    const nextUnit = ['sets', 'reps', weightUnit()][spec.length] || 'reps';
-    const nextJoin = ['', '×', 'at'][spec.length] || '×';
+    const nextUnit = ['reps', weightUnit()][spec.length] || 'reps';
+    const nextJoin = ['', 'at'][spec.length] || '×';
     wrap.append(h('button', { class: 'btn small', onclick: () => { spec.push({ join: spec.length ? nextJoin : '', value: '', unit: nextUnit }); draw(); } }, '+ Add block'));
     if (!spec.length) {
       const shapes = [
-        ['sets × reps', [['', 'sets'], ['×', 'reps']]],
-        [`sets × reps at ${weightUnit()}`, [['', 'sets'], ['×', 'reps'], ['at', weightUnit()]]],
-        ['sets for sec', [['', 'sets'], ['for', 'sec']]],
+        ['reps', [['', 'reps']]],
+        [`reps at ${weightUnit()}`, [['', 'reps'], ['at', weightUnit()]]],
+        ['sec', [['', 'sec']]],
         ['min', [['', 'min']]],
       ];
       wrap.append(h('div', { class: 'shapes' }, shapes.map(([label, blocks]) => h('button', { class: 'pill', onclick: () => {
@@ -1720,6 +1730,7 @@ function renderProfile() {
 const isBackup = (data) => data && typeof data.days === 'object' && Array.isArray(data.exercises);
 function replaceState(data) {
   state = normalize(data);
+  seedStarters();
   save();
   applyTheme();
   initRange();
